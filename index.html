@@ -1,100 +1,122 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Pickleball Scheduler — Final</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pickleball Tournament Scheduler — McKinsey Board Compact</title>
 <style>
   :root{
     --page-bg:#f5f6f7;
-    --card-bg:#102238;
+    --card-bg:#0f2435;
     --gold:#d4af37;
     --gold-hover:#e5c157;
-    --muted:#8b95a3;
+    --muted:#9aa6b4;
     --card-text:#e7f3ff;
     --white:#ffffff;
-    --radius:10px;
+    --radius:8px;
     --maxwidth:1200px;
-    --shadow:0 6px 18px rgba(15,23,42,0.12);
+    --shadow:0 6px 18px rgba(2,8,25,0.12);
   }
 
-  html,body{
-    margin:0;
-    height:100%;
-    background:var(--page-bg);
-    color:#102238;
-    font-family:Inter,Segoe UI,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
+  /* Page & compact spacing */
+  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--page-bg);color:#102238;-webkit-font-smoothing:antialiased;}
+  /* Shorter banner and reduced top whitespace */
+  .banner{position:fixed;top:0;left:0;right:0;height:30px;display:flex;align-items:center;padding:0 10px;background:var(--card-bg);color:var(--card-text);box-shadow:0 4px 14px rgba(2,6,23,0.2);z-index:999;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* wrap margin slightly larger than banner so content doesn't hide under it, but much reduced */
+  .wrap{max-width:var(--maxwidth);margin:42px auto 20px;padding:8px;} /* reduced vertical spacing */
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .subtitle{color:var(--muted);font-size:12px;margin-top:2px;}
 
-  /* Banner — compact */
-  .banner{
-    position:fixed; top:0; left:0; right:0; height:36px;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:0 12px; background:var(--card-bg); color:var(--card-text);
-    font-size:13px; font-weight:600; z-index:999;
-    box-shadow:0 3px 10px rgba(0,0,0,0.18);
-  }
+  /* compact two-column layout */
+  .grid{display:grid;grid-template-columns:1fr 320px;gap:12px;}
+  @media (max-width:1024px){ .grid{grid-template-columns:1fr 300px;} }
+  @media (max-width:820px){ .grid{grid-template-columns:1fr;} }
 
-  .wrap{ max-width:var(--maxwidth); margin:46px auto 20px; padding:8px; }
+  /* Card styling — compact padding */
+  .card{background:var(--card-bg);color:var(--card-text);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow);}
+  .title{font-weight:700;color:#eaf4ff;margin:0 0 6px;font-size:14px;}
+  .muted{color:var(--muted);font-size:12px;}
 
-  .grid{ display:grid; grid-template-columns:1fr 320px; gap:10px; }
-  @media (max-width:980px){ .grid{ grid-template-columns:1fr; } }
-
-  .card{
-    background:var(--card-bg);
-    color:var(--card-text);
-    border-radius:var(--radius);
-    padding:10px 12px;
-    box-shadow:var(--shadow);
-  }
-  .title{ font-weight:700; font-size:15px; margin-bottom:6px; }
-  label{ display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
-
+  /* form controls — smaller */
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
   input[type="text"], input[type="number"], select {
-    width:100%; box-sizing:border-box; padding:6px 8px; border-radius:6px;
-    border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.04);
-    color:var(--card-text); font-size:13px;
+    width:100%; box-sizing:border-box; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
   }
 
-  .btn{
-    background:var(--gold); color:#102238; border:none;
-    padding:7px 10px; font-weight:700; border-radius:6px; cursor:pointer;
-    box-shadow:0 4px 10px rgba(20,18,16,0.08); font-size:13px;
-  }
+  /* Buttons — compact */
+  .btn { background:var(--gold); color:#102238; border:none; padding:8px 10px; font-weight:700; border-radius:8px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:13px; min-height:34px; }
   .btn:hover{ background:var(--gold-hover); }
-  .btn.ghost{ background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.08); }
+  .btn.ghost { background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.04); padding:7px 9px; }
+  .btn.small { padding:6px 8px; font-size:12px; }
+  .btn.full { width:100%; display:block; }
 
-  .setup-row{
-    display:grid; grid-template-columns:repeat(6,minmax(90px,1fr)); gap:6px; align-items:end;
+  /* Match / fixtures grid — denser */
+  .match-grid{ display:grid; grid-template-columns: repeat(auto-fill,minmax(300px,1fr)); gap:10px; margin-top:10px; }
+  @media (max-width:820px){ .match-grid{ grid-template-columns:1fr; } }
+
+  .match-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:8px; padding:10px; border:1px solid rgba(255,255,255,0.04); color:var(--card-text); }
+  .match-title{ font-weight:700; color:#eaf4ff; margin-bottom:6px; font-size:13px; }
+  .team-label { font-size:13px; color:#eaf4ff; font-weight:600; }
+  .team-players { font-size:12px; color:var(--muted); margin-bottom:6px; }
+
+  .score-row{ display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .score-input{ width:72px; padding:7px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:60px; }
+
+  .player-input{ width:calc(50% - 6px); padding:7px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:rgba(255,255,255,0.02); color:var(--card-text); font-size:13px; box-sizing:border-box; }
+
+  .white-table { width:100%; border-collapse:collapse; background:var(--white); color:#102238; border-radius:8px; overflow:hidden; margin-top:10px; }
+  .white-table th, .white-table td { padding:7px; border-bottom:1px solid #e6eaee; text-align:left; font-size:12px; }
+  .white-table thead th { background:#f1f5f8; color:#667085; font-weight:700; position:relative; }
+
+  /* McKinsey-like compact setup band: side-by-side controls */
+  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:8px; align-items:start; }
+  /* fallbacks for smaller screens */
+  @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(5, minmax(90px, 1fr)); } }
+  @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
+  @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width:420px){ .setup-row{ grid-template-columns: 1fr; } }
+
+  .table-wrap { overflow:auto; -webkit-overflow-scrolling:touch; border-radius:8px; }
+  @media (max-width:820px){ .white-table { min-width:640px; } }
+
+  /* buttons stacking on small screens */
+  .action-row { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+  @media (max-width:420px){ .action-row{ flex-direction:column; align-items:stretch; } .action-row .btn{ width:100%; } }
+
+  /* Reduce spacing on very small screens to pack more on display */
+  @media (max-width:420px){
+    .wrap{ padding:8px; margin-top:40px; }
+    .card{ padding:8px; border-radius:6px; }
+    label{font-size:11px;}
+    input[type="text"], input[type="number"], select { padding:7px; font-size:12px; }
+    .player-input{ width:100%; margin-bottom:6px; }
+    .score-input{ min-width:56px; padding:6px; font-size:12px; }
+    .match-title{ font-size:13px; }
+    .white-table th, .white-table td { padding:6px; font-size:11px; }
+    .banner{height:28px;font-size:12px;}
   }
-  @media(max-width:900px){ .setup-row{ grid-template-columns:repeat(3,1fr); } }
-  @media(max-width:600px){ .setup-row{ grid-template-columns:1fr; } }
 
-  .muted{ color:var(--muted); font-size:12px; }
-  .section-buttons{ display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; margin-top:8px; }
-
-  .match-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; margin-top:10px; }
-  .match-card{ background:rgba(255,255,255,0.03); border-radius:8px; padding:8px; border:1px solid rgba(255,255,255,0.05); }
-  .team-row{ display:flex; justify-content:space-between; align-items:center; margin:6px 0; }
-  .team-label{ font-size:13px; font-weight:600; color:#eaf4ff; }
-  .score-input{ width:72px; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.03); color:var(--card-text); text-align:center; font-size:13px; }
-
-  .white-table{ width:100%; border-collapse:collapse; background:var(--white); color:#102238; border-radius:8px; overflow:hidden; margin-top:8px; }
-  .white-table th, .white-table td{ padding:7px 8px; border-bottom:1px solid #e6eaee; font-size:12px; text-align:left; }
-  .white-table thead th{ background:#f1f5f8; color:#667085; font-weight:700; }
+  /* Sticky header inside scrollable table */
+  .white-table thead th { position:sticky; top:0; z-index:1; }
 </style>
 </head>
 <body>
-  <div class="banner"><div id="stageBanner">Current Stage: Round Robin</div></div>
+
+  <div class="banner" id="stageBanner">Current Stage: Round Robin</div>
 
   <div class="wrap">
+    <header>
+      <!-- Title intentionally removed per request to save vertical space -->
+      <div></div>
+    </header>
+
     <div class="grid">
-      <!-- LEFT: main -->
+      <!-- LEFT -->
       <div>
-        <!-- Setup -->
+        <!-- SETUP -->
         <div class="card">
-          <div class="title">Prompt-designed by Megh Kalyanasundaram</div>
+          <div class="title">Setup</div>
           <div class="setup-row">
             <div>
               <label>Game Type</label>
@@ -106,115 +128,159 @@
 
             <div>
               <label id="numLabel">No. of Teams</label>
-              <input id="numTeams" type="number" min="2" value="8">
+              <input id="numTeams" type="number" min="2" placeholder="e.g. 8" value="8">
             </div>
 
             <div>
               <label>No. of Courts</label>
-              <input id="numCourts" type="number" min="1" value="1">
+              <input id="numCourts" type="number" min="1" placeholder="e.g. 3" value="1">
             </div>
 
             <div>
               <label>No. of Groups</label>
-              <input id="numGroups" type="number" min="1" value="1">
+              <input id="numGroups" type="number" min="1" value="1" onchange="onQualifiersChange()">
             </div>
 
             <div>
-              <label>Round Robin Type</label>
+              <label>Qualifiers/group</label>
+              <select id="qualPerGroup" onchange="onQualifiersChange()">
+                <option value="1">1</option>
+                <option value="2" selected>2</option>
+              </select>
+            </div>
+
+            <div>
+              <label><input id="enableQF" type="checkbox" onchange="onQualifiersChange()" /> Enable QF</label>
+              <div class="muted" style="font-size:11px; margin-top:4px;" id="qfNote">QF available when total qualifiers ≥ 4; BYEs added to reach 8.</div>
+            </div>
+
+            <div>
+              <label>RR Type</label>
               <select id="rrType">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
               </select>
             </div>
-
-            <div>
-              <label>Enable Quarterfinals</label>
-              <input id="enableQF" type="checkbox">
-            </div>
           </div>
 
-          <div class="section-buttons">
-            <button class="btn" onclick="startEntry()">Next: Enter Details</button>
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+            <button class="btn" id="startEntryBtn">Next: Enter Details</button>
           </div>
         </div>
 
-        <!-- Entry card -->
+        <!-- ENTRY -->
         <div id="entryCard" class="card" style="margin-top:12px; display:none;">
           <div class="title" id="entryTitle">Enter Teams & Players</div>
           <div id="entryInner"></div>
         </div>
 
-        <!-- Group summary -->
+        <!-- SUMMARY -->
         <div id="summaryCard" class="card" style="margin-top:12px; display:none;">
-          <div class="title">Group Summary</div>
+          <div class="title" id="summaryTitle">Group Summary</div>
           <div id="summaryInner"></div>
         </div>
 
-        <!-- Fixtures -->
+        <!-- FIXTURES -->
         <div id="fixturesCard" class="card" style="margin-top:12px; display:none;">
           <div class="title">Fixtures — Enter Scores</div>
           <div id="fixturesGrid" class="match-grid"></div>
-          <div class="section-buttons">
-            <button class="btn" onclick="generateFinalRanking()">Generate Round-Robin Rankings</button>
-            <button class="btn ghost" onclick="showSummary()">Back to Summary</button>
+
+          <div class="action-row" style="margin-top:10px;">
+            <button class="btn" id="genRRBtn">Generate Round-Robin Rankings</button>
+            <button class="btn ghost" id="backToSummaryBtn">Back</button>
           </div>
-          <div class="muted" style="margin-top:8px;">Enter both teams' scores for a match to be counted. Ties are not allowed.</div>
+
+          <div class="muted" style="margin-top:8px;">Enter both scores for a match to count it. Ties are not allowed.</div>
         </div>
 
-        <!-- Rankings -->
+        <!-- RANKINGS -->
         <div id="rankingsCard" class="card" style="margin-top:12px; display:none;">
           <div class="title">🏆 Rankings</div>
           <div id="rankingsInner"></div>
 
-          <div class="section-buttons" style="margin-top:10px;">
-            <button id="exportCSV" class="btn ghost" onclick="exportCSV()">Export CSV</button>
-            <button id="printBtn" class="btn ghost" onclick="window.print()">Print / Save as PDF</button>
-            <button id="toQFBtn" class="btn" style="display:none;" onclick="prepareQuarterfinals()">Generate Quarterfinals</button>
-            <button id="toSemisBtn" class="btn" style="display:none;" onclick="prepareSemifinals()">Generate Semifinals</button>
+          <div id="qualifiersPreview" class="qual-list" style="display:none;"></div>
+
+          <div class="action-row" style="margin-top:10px;">
+            <button id="toQFBtn" class="btn" style="display:none;">Generate Quarterfinals</button>
+            <button id="toSemisBtn" class="btn" style="display:none;">Generate Semifinals</button>
+          </div>
+
+          <div class="action-row" style="margin-top:10px;">
+            <button class="btn" id="printBtn">Print / Save as PDF</button>
+            <button class="btn" id="exportCSVBtn">Export Rankings (CSV)</button>
           </div>
         </div>
 
-        <!-- Knockouts -->
+        <!-- KNOCKOUTS -->
         <div id="knockoutsCard" class="card" style="margin-top:12px; display:none;">
           <div class="title">Knockout Stage</div>
           <div id="knockoutsInner"></div>
         </div>
       </div>
 
-      <!-- RIGHT: quick actions -->
+      <!-- RIGHT: quick actions + notes -->
       <div>
         <div class="card">
           <div class="title">Quick Actions</div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
-            <button class="btn" onclick="generateFixtures()">Generate Fixtures</button>
-            <button class="btn" onclick="generateFinalRanking()">Generate Round-Robin Rankings</button>
+            <button class="btn small full" id="quickGenFixtures">Generate Fixtures</button>
+            <button class="btn small full" id="quickGenRanks">Generate Round-Robin Rankings</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div class="title">Notes</div>
+          <div class="muted" style="margin-top:6px;">
+            • Round-robin totals exclude knockout matches.<br>
+            • QF seeding: 1v8,4v5,2v7,3v6. Winners → SF: winner(QF1) vs winner(QF4) and winner(QF2) vs winner(QF3).<br>
+            • Ties are not allowed — enter both scores to count match.
           </div>
         </div>
       </div>
     </div>
+
+    <footer style="margin-top:12px;font-size:12px;color:var(--muted);">Prompt-designed by Megh Kalyanasundaram</footer>
   </div>
 
 <script>
-/* ---------- State ---------- */
-let teams = [];       // {id, name, players[], group}
-let fixtures = [];    // {id, matchNum, court, group, t1, t2}
-let rankings = {};    // groupKey -> array
-let knockout = {};    // { qfs:[], sf1, sf2, final, third }
-const $ = id => document.getElementById(id);
+/* ---------- App State ---------- */
+let teams = [];        // {id, name, players[], group}
+let fixtures = [];     // {id, matchNum, court, group, t1, t2}
+let rankings = {};     // groupKey -> array of ranking objects
+let knockout = {};     // { qf:[], sf1, sf2, final, third }
 
-/* ---------- UI helpers ---------- */
-function updateBanner(stageText){
-  $('stageBanner').textContent = `Current Stage: ${stageText}`;
-}
+/* ---------- DOM helpers ---------- */
+const $ = id => document.getElementById(id);
+function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
 updateBanner('Round Robin');
 
+/* ---------- Setup helpers ---------- */
 function onGameTypeChange(){
   const type = $('gameType').value;
   $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
   $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
+  $('summaryTitle').textContent = (type === 'singles') ? 'Group Summary — Players' : 'Group Summary — Teams';
+}
+function getTotalQualifiers(){
+  const per = Math.max(1, Number($('qualPerGroup').value) || 1);
+  const groups = Math.max(1, Number($('numGroups').value) || 1);
+  return per * groups;
+}
+function onQualifiersChange(){
+  const total = getTotalQualifiers();
+  const qfEl = $('enableQF');
+  if (!qfEl) return;
+  if (total >= 4) {
+    qfEl.disabled = false;
+    $('qfNote').textContent = `QF available — total qualifiers = ${total}. If <8, BYEs will be added to reach 8.`;
+  } else {
+    qfEl.checked = false;
+    qfEl.disabled = true;
+    $('qfNote').textContent = `QF disabled — total qualifiers = ${total} (need at least 4).`;
+  }
 }
 
-/* ---------- Entry flow ---------- */
+/* ---------- Team entry ---------- */
 function startEntry(){
   const n = Number($('numTeams').value);
   if (!n || n < 2) { alert('Please enter at least 2 participants.'); return; }
@@ -222,80 +288,119 @@ function startEntry(){
 
   let html = '';
   for (let i=1;i<=n;i++){
-    html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:6px;">`;
+    html += `<div style="background:rgba(255,255,255,0.02); padding:8px; border-radius:8px; margin-bottom:8px;">`;
     if (gameType === 'singles'){
-      html += `<label>Player ${i}</label><input id="pA_${i}" type="text" placeholder="Name (optional)">`;
+      html += `<label style="font-size:12px;color:var(--muted); margin-bottom:6px;">Player ${i}</label><input id="pA_${i}" class="player-input" type="text" placeholder="Player name (optional)"></div>`;
     } else {
-      html += `<label>Team ${i} — Players</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
-          <input id="pA_${i}" type="text" placeholder="Player A (optional)">
-          <input id="pB_${i}" type="text" placeholder="Player B (optional)">
-        </div>`;
+      html += `<label style="font-size:12px;color:var(--muted); margin-bottom:6px;">Team ${i} — Players</label>
+        <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+          <input id="pA_${i}" class="player-input" type="text" placeholder="Player A (optional)">
+          <input id="pB_${i}" class="player-input" type="text" placeholder="Player B (optional)">
+        </div></div>`;
     }
-    html += `</div>`;
   }
-  html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" onclick="saveTeams()">Save</button><button class="btn ghost" onclick="cancelEntry()">Cancel</button></div>`;
+  html += `<div style="display:flex; justify-content:flex-end; gap:8px;">
+    <button class="btn" id="saveTeamsBtn">Save</button>
+    <button class="btn ghost" id="cancelEntryBtn">Cancel</button>
+  </div>`;
+
   $('entryInner').innerHTML = html;
   $('entryCard').style.display = 'block';
   $('fixturesCard').style.display = 'none';
   $('rankingsCard').style.display = 'none';
-  $('knockoutsCard').style.display = 'none';
-  updateBanner('Enter Participants');
+  updateBanner('Entry');
 }
-
-function cancelEntry(){
-  $('entryInner').innerHTML = '';
-  $('entryCard').style.display = 'none';
-  updateBanner('Round Robin');
-}
+function cancelEntry(){ $('entryInner').innerHTML=''; $('entryCard').style.display='none'; updateBanner('Round Robin'); }
 
 function saveTeams(){
   const n = Math.max(0, Number($('numTeams').value) || 0);
   const gameType = $('gameType').value;
   teams = [];
   for (let i=1;i<=n;i++){
-    const p1 = ($(`pA_${i}`)?.value || '').trim();
-    const p2 = ($(`pB_${i}`)?.value || '').trim();
-    const players = (gameType === 'singles') ? (p1 ? [p1] : []) : [p1, p2].filter(Boolean);
-    const name = (gameType === 'singles') ? (p1 || `Player ${i}`) : (`Team ${i}`);
-    teams.push({ id:i, name, players, group:null });
+    const defaultName = (gameType === 'singles') ? `Player ${i}` : `Team ${i}`;
+    const p1 = (($(`pA_${i}`)?.value || '').trim());
+    let players = [];
+    if (gameType === 'singles'){
+      if (p1) players.push(p1);
+    } else {
+      const p2 = (($(`pB_${i}`)?.value || '').trim());
+      if (p1) players.push(p1);
+      if (p2) players.push(p2);
+    }
+    teams.push({ id:i, name:defaultName, players, group:null });
   }
   assignGroups();
 }
 
-/* ---------- Groups & summary ---------- */
+/* ---------- Groups & Summary ---------- */
 function assignGroups(){
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
-  teams.forEach((t, idx) => t.group = (idx % numGroups) + 1);
-  showGroupSummary();
+  teams.forEach((t,idx)=> t.group = (idx % numGroups) + 1 );
+  showSummary();
 }
-
-function showGroupSummary(){
-  if (!teams || teams.length === 0) return alert('No participants defined.');
+function showSummary(){
+  if (!teams || teams.length===0) return alert('No participants defined.');
   const gameType = $('gameType').value;
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
   const groups = Array.from({length:numGroups}, ()=>[]);
   teams.forEach(t=> groups[t.group-1].push(t));
   let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px;">';
   groups.forEach((g,i)=>{
-    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:6px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} ${gameType==='singles'?'players':'teams'}</div><table class="white-table"><thead><tr><th>${gameType==='singles'?'Player':'Team'}</th><th>Players</th></tr></thead><tbody>`;
+    html += `<div style="background:var(--white); color:#102238; padding:8px; border-radius:8px;">
+      <div style="font-weight:700; margin-bottom:6px;">Group ${i+1} — ${g.length} ${gameType==='singles' ? 'players' : 'teams'}</div>
+      <div class="table-wrap"><table class="white-table"><thead><tr><th>${gameType==='singles'?'Player':'Team'}</th><th>Players</th></tr></thead><tbody>`;
     if (g.length===0) html += `<tr><td colspan="2" class="muted">No entries</td></tr>`;
     else g.forEach(t=> html += `<tr><td>${t.name}</td><td>${(t.players||[]).join(' & ')}</td></tr>`);
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
   });
-  html += `</div><div style="display:flex;justify-content:flex-end;margin-top:8px;"><button class="btn" onclick="generateFixtures()">Generate Fixtures</button></div>`;
+  html += '</div>';
+  html += `<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+    <button class="btn" id="genFixturesBtn">Generate Fixtures</button>
+    <button class="btn ghost" id="editEntryBtn">Edit</button>
+  </div>`;
   $('summaryInner').innerHTML = html;
-  $('summaryCard').style.display = 'block';
-  $('entryCard').style.display = 'none';
+  $('summaryCard').style.display='block';
+  $('entryCard').style.display='none';
   updateBanner('Group Summary');
+
+  // delegated handlers
+  document.querySelectorAll('#genFixturesBtn').forEach(btn => btn.addEventListener('click', ()=>{ generateFixtures(); }));
+  document.querySelectorAll('#editEntryBtn').forEach(btn => btn.addEventListener('click', ()=>{ startEntry(); }));
 }
 
-/* ---------- Fixtures generation ---------- */
+/* ---------- Fixtures ---------- */
+function generateFixtures(){
+  if (!teams || teams.length < 2) return alert('Please add participants first.');
+  const numCourts = Math.max(1, Number($('numCourts').value) || 1);
+  const rrType = $('rrType').value;
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  teams.forEach((t,idx)=>{ if (!t.group) t.group = (idx % numGroups) + 1; });
+
+  let rawFixtures = [];
+  if (rrType === 'across'){
+    rawFixtures = roundRobin(teams, 'all');
+  } else {
+    const groups = {};
+    teams.forEach(t=> { if (!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
+    Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
+  }
+
+  fixtures = rawFixtures.map((f,idx)=>({
+    id: idx,
+    matchNum: idx+1,
+    court: (idx % numCourts) + 1,
+    group: f.group,
+    t1: f.t1,
+    t2: f.t2
+  }));
+
+  renderFixtures();
+}
+
 function roundRobin(list, groupKey){
   const arr = [...list];
   if (arr.length % 2 !== 0) arr.push({ id:null, name:'BYE', players:[] });
-  const n = arr.length;
-  const rounds = n - 1;
+  const n = arr.length, rounds = n-1;
   let order = arr.slice();
   const out = [];
   for (let r=0;r<rounds;r++){
@@ -308,291 +413,423 @@ function roundRobin(list, groupKey){
   return out;
 }
 
-function generateFixtures(){
-  if (!teams || teams.length < 2) return alert('Please add participants first.');
-  const numCourts = Math.max(1, Number($('numCourts').value) || 1);
-  const rrType = $('rrType').value;
-
-  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
-  teams.forEach((t, idx) => { if (!t.group) t.group = (idx % numGroups) + 1; });
-
-  let rawFixtures = [];
-  if (rrType === 'across'){
-    rawFixtures = roundRobin(teams, 'all');
-  } else {
-    const groups = {};
-    teams.forEach(t => { if (!groups[t.group]) groups[t.group] = []; groups[t.group].push(t); });
-    Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
-  }
-
-  fixtures = rawFixtures.map((f, idx) => ({ id: idx, matchNum: idx+1, court: (idx % numCourts) + 1, group: f.group, t1: f.t1, t2: f.t2 }));
-  renderFixtures();
-  updateBanner('Enter Scores');
-}
-
 function renderFixtures(){
   const grid = $('fixturesGrid'); grid.innerHTML = '';
   fixtures.forEach(m=>{
-    const card = document.createElement('div'); card.className = 'match-card';
-    const groupLabel = (m.group === 'all') ? 'All' : m.group;
+    const card = document.createElement('div'); card.className='match-card';
+    const groupLabel = (m.group==='all' ? 'All' : m.group);
     card.innerHTML = `
-      <div style="font-weight:700;margin-bottom:6px;color:#eaf4ff;">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
-      <div class="team-row"><div class="team-label">T${m.t1.id} — ${m.t1.name}</div><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
-      <div class="team-row"><div class="team-label">T${m.t2.id} — ${m.t2.name}</div><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="font-weight:700;margin-bottom:6px;color:#eaf4ff">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
+      <div class="team-row"><div class="team-label">${m.t1.name}</div><div style="margin-left:auto"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+      <div style="height:6px"></div>
+      <div class="team-row"><div class="team-label">${m.t2.name}</div><div style="margin-left:auto"><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div></div>
     `;
     grid.appendChild(card);
   });
-  $('fixturesCard').style.display = 'block';
-  $('rankingsCard').style.display = 'none';
-  $('knockoutsCard').style.display = 'none';
+  $('fixturesCard').style.display='block';
+  $('rankingsCard').style.display='none';
+  updateBanner('Round Robin — Enter Scores');
 }
 
-/* ---------- Ranking calculation ---------- */
+/* ---------- Round-robin ranking (totals only) ---------- */
 function generateFinalRanking(){
   if (!fixtures || fixtures.length===0) return alert('No fixtures. Generate fixtures first.');
 
-  // initialize stats
   const stats = {};
   teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0 });
 
-  // accumulate from fixtures — only count matches where both scores are entered, no ties
-  for (const m of fixtures){
-    const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
-    if (!s1El || !s2El) continue;
-    const s1Raw = s1El.value.trim(), s2Raw = s2El.value.trim();
-    if (s1Raw === '' && s2Raw === '') continue; // not played
-    if (s1Raw === '' || s2Raw === '') { alert(`Please enter both scores for Match ${m.matchNum}.`); return; }
-    const s1 = Number(s1Raw), s2 = Number(s2Raw);
-    if (Number.isNaN(s1) || Number.isNaN(s2)) { alert(`Invalid score in Match ${m.matchNum}.`); return; }
-    if (s1 === s2) { alert(`Match ${m.matchNum} has a tie (${s1}). Ties are not allowed.`); return; }
+  let invalid = false, invalidMsg='';
 
-    // allocate
+  fixtures.forEach(m=>{
+    const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
+    if (!s1El || !s2El) return;
+    const s1 = s1El.value === '' ? NaN : Number(s1El.value);
+    const s2 = s2El.value === '' ? NaN : Number(s2El.value);
+    if (Number.isNaN(s1) && Number.isNaN(s2)) return; // match not played
+    if (Number.isNaN(s1) || Number.isNaN(s2)) { invalid=true; invalidMsg=`Match ${m.matchNum}: both scores required.`; return; }
+    if (s1 === s2) { invalid=true; invalidMsg=`Match ${m.matchNum}: tie detected (${s1}). Ties are not allowed.`; return; }
+
     const winnerId = s1 > s2 ? m.t1.id : m.t2.id;
-    const loserId = s1 > s2 ? m.t2.id : m.t1.id;
+    const loserId  = s1 > s2 ? m.t2.id : m.t1.id;
     const winnerScore = Math.max(s1,s2), loserScore = Math.min(s1,s2);
 
     if (stats[winnerId]) { stats[winnerId].matchesWon += 1; stats[winnerId].ptsWon += winnerScore; stats[winnerId].ptsLost += loserScore; }
     if (stats[loserId])  { stats[loserId].ptsWon += loserScore; stats[loserId].ptsLost += winnerScore; }
-  }
+  });
 
-  // group the stats according to rrType
+  if (invalid) return alert(invalidMsg || 'Score input error.');
+
   const rrType = $('rrType').value;
   const groupsMap = {};
   if (rrType === 'across') groupsMap['all'] = Object.values(stats);
-  else Object.values(stats).forEach(s => { const g = s.group || 1; if (!groupsMap[g]) groupsMap[g] = []; groupsMap[g].push(s); });
+  else Object.values(stats).forEach(s => { const g = s.group || 1; if (!groupsMap[g]) groupsMap[g]=[]; groupsMap[g].push(s); });
 
-  // compute diff and ranking within groups
   rankings = {};
   Object.keys(groupsMap).sort((a,b)=>{ if (a==='all') return -1; return Number(a)-Number(b); }).forEach(k=>{
     const arr = groupsMap[k];
-    arr.forEach(x => x.diff = (x.ptsWon||0) - (x.ptsLost||0));
-    arr.sort((a,b) => {
+    arr.forEach(x=> x.diff = (x.ptsWon||0) - (x.ptsLost||0));
+    arr.sort((a,b)=>{
       if ((b.matchesWon||0) !== (a.matchesWon||0)) return (b.matchesWon||0) - (a.matchesWon||0);
       return (b.diff||0) - (a.diff||0);
     });
-    arr.forEach((s,i) => s.rank = i+1);
+    arr.forEach((s,i)=> s.rank = i+1);
     rankings[k] = arr;
   });
 
-  renderRankings();
-  updateBanner('Rankings');
+  renderRanks();
+  updateBanner('Ranking');
 }
 
-function renderRankings(){
-  const wrap = $('rankingsInner'); let html = '<div style="display:grid;gap:8px;">';
+/* ---------- Render rankings & qualifiers preview ---------- */
+function renderRanks(){
+  const wrap = $('rankingsInner'); let html = '<div style="display:grid; gap:8px;">';
   Object.keys(rankings).forEach(key=>{
     const arr = rankings[key];
-    const title = (key === 'all') ? 'Overall Ranking (Across All)' : `Group ${key} Ranking`;
-    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:6px;">
-      <div style="font-weight:700;margin-bottom:6px;">${title}</div>
-      <table class="white-table"><thead><tr><th>Rank</th><th>Team</th><th>Players</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
-    arr.forEach(r=> html += `<tr><td>${r.rank}</td><td>T${r.id} (${r.name})</td><td>${(r.players||[]).join(' & ')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`);
-    html += '</tbody></table></div>';
+    const title = (key==='all') ? 'Overall Ranking (Across All)' : `Group ${key} Ranking`;
+    html += `<div style="background:var(--white); color:#102238; padding:8px; border-radius:8px;">
+      <div style="font-weight:700; margin-bottom:6px;">${title}</div>
+      <div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
+    arr.forEach(r=> html += `<tr><td>${r.rank}</td><td>${r.name}</td><td>${(r.players||[]).join(' & ')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`);
+    html += '</tbody></table></div></div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
-  $('rankingsCard').style.display = 'block';
+  $('rankingsCard').style.display='block';
 
-  // enable QF/SF buttons depending on settings
+  // Prepare and show qualifier preview
+  const qualified = getQualifiedList();
+  const previewEl = $('qualifiersPreview');
+  if (qualified.length === 0) {
+    previewEl.style.display = 'none';
+    previewEl.innerHTML = '';
+  } else {
+    previewEl.style.display = 'block';
+    let list = `<div style="font-weight:700;margin-bottom:6px;color:#0b1b33;">Qualified (in selection order)</div><ol>`;
+    qualified.forEach(q => list += `<li>${q.isBye ? 'BYE' : 'T'+q.id + ' — ' + q.name} ${(q.players && q.players.length) ? '(' + q.players.join(' & ') + ')' : ''}</li>`);
+    list += `</ol><div class="muted">Total qualifiers: ${qualified.length}. Settings: ${$('qualPerGroup').value}×${$('numGroups').value} = ${getTotalQualifiers()}</div>`;
+    previewEl.innerHTML = list;
+  }
+
+  // Show/hide QF and SF buttons
   const enableQF = !!$('enableQF').checked;
-  // derive 'all list' for seeding: prefer rankings['all'] else flatten groups in numeric order
-  let allList = rankings['all'] || [];
-  if (!allList.length) {
-    // flatten groups in ascending group order, preserving ranks
+  const canQF = enableQF && qualified.length >= 4;
+  $('toQFBtn').style.display = canQF ? 'inline-block' : 'none';
+
+  if (!canQF) {
+    const rrType = $('rrType').value;
+    let canSemis = false;
+    if (rrType === 'across') { const all = rankings['all'] || []; if (all.length >= 4) canSemis = true; }
+    else { const g1 = rankings[1] || [], g2 = rankings[2] || []; if (g1.length >= 2 && g2.length >= 2) canSemis = true; }
+    $('toSemisBtn').style.display = canSemis ? 'inline-block' : 'none';
+  } else {
+    $('toSemisBtn').style.display = 'none';
+  }
+}
+
+/* ---------- Helper: return ordered qualifiers list according to settings ---------- */
+function getQualifiedList(){
+  const per = Math.max(1, Number($('qualPerGroup').value) || 1);
+  const rrType = $('rrType').value;
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  const qualified = [];
+
+  if (rrType === 'across'){
+    const all = rankings['all'] || [];
+    const totalWanted = per * numGroups;
+    for (let i=0;i<Math.min(all.length, totalWanted); i++) qualified.push(all[i]);
+  } else {
     const groupKeys = Object.keys(rankings).filter(k=>k!=='all').sort((a,b)=>Number(a)-Number(b));
-    groupKeys.forEach(k => allList = allList.concat(rankings[k]));
-  }
-  $('toQFBtn').style.display = (enableQF && allList.length >= 8) ? 'inline-block' : 'none';
-  $('toSemisBtn').style.display = (!enableQF && allList.length >= 4) ? 'inline-block' : 'none';
-}
-
-/* ---------- CSV Export ---------- */
-function exportCSV(){
-  if (!rankings || Object.keys(rankings).length === 0) return alert('No rankings to export. Generate rankings first.');
-  const rows = [['Group','Rank','ID','Name','Players','MatchesWon','PtsWon','PtsLost','Diff']];
-  Object.keys(rankings).forEach(gk => {
-    (rankings[gk]||[]).forEach(r => {
-      rows.push([gk, r.rank, r.id, r.name, (r.players||[]).join(' & '), r.matchesWon || 0, r.ptsWon || 0, r.ptsLost || 0, r.diff || 0]);
+    groupKeys.forEach(k=>{
+      const arr = rankings[k] || [];
+      for (let i=0;i<Math.min(arr.length, per); i++) qualified.push(arr[i]);
     });
-  });
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'Rankings.csv'; document.body.appendChild(a); a.click();
-  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
-}
-
-/* ---------- Quarterfinals / Knockout flows ---------- */
-
-/* Helper: seize seed list (top qualifiers).
-   For simplicity we take the 'flattened' top list:
-   - If rankings['all'] exists, use it.
-   - Else flatten groups in numeric order picking top teams overall (as they appear).
-*/
-function getSeedList(){
-  let list = rankings['all'] || [];
-  if (!list.length){
-    const keys = Object.keys(rankings).filter(k=>k!=='all').sort((a,b)=>Number(a)-Number(b));
-    keys.forEach(k => list = list.concat(rankings[k] || []));
   }
-  return list;
+  return qualified;
 }
 
-/* Prepare Quarterfinals: top 8 seeded in common pattern */
+/* ---------- Quarterfinals: creation, rendering, proceed ---------- */
 function prepareQuarterfinals(){
-  const seeds = getSeedList();
-  if (seeds.length < 8) return alert('Need at least 8 qualifiers for Quarterfinals.');
-  // seeding: 1v8,4v5,2v7,3v6 (commonly used)
-  const top8 = seeds.slice(0,8);
-  knockout.qfs = [
+  if (!rankings || Object.keys(rankings).length === 0) { alert('Please generate Round-Robin Rankings first.'); return; }
+
+  const qualified = getQualifiedList();
+  if (qualified.length < 4) return alert('Not enough qualifiers to create quarterfinals (need at least 4).');
+
+  const prepared = qualified.slice();
+  if (prepared.length < 8) {
+    const byesToAdd = 8 - prepared.length;
+    for (let i=0;i<byesToAdd;i++){
+      prepared.push({ id:`BYE${i+1}`, name:'BYE', players:[], isBye:true });
+    }
+  } else if (prepared.length > 8) {
+    prepared.splice(8);
+  }
+
+  const previewLines = prepared.map((q,i)=> `${i+1}. ${q.isBye ? 'BYE' : 'T'+q.id + ' — ' + q.name}`);
+  if (!confirm(`Quarterfinals seeded from top 8:\n\n${previewLines.join('\n')}\n\nProceed?`)) return;
+
+  const top8 = prepared;
+  const qfPairs = [
     { id:'QF1', a: top8[0], b: top8[7] },
     { id:'QF2', a: top8[3], b: top8[4] },
     { id:'QF3', a: top8[1], b: top8[6] },
     { id:'QF4', a: top8[2], b: top8[5] }
   ];
-  renderKnockoutStage('Quarterfinals', knockout.qfs, 'proceedFromQuarterfinals()');
+
+  knockout = { qf: qfPairs, sf1: null, sf2: null, final: null, third: null };
+  renderQuarterfinals();
+  updateBanner('Quarterfinals');
 }
 
-/* Called by QF proceed button — validates scores and builds SFs */
+function renderQuarterfinals(){
+  const inner = $('knockoutsInner'); inner.innerHTML = '';
+  if (!knockout || !knockout.qf) return;
+
+  knockout.qf.forEach((m, idx)=>{
+    const div = document.createElement('div'); div.style.marginBottom='8px';
+    const labelA = m.a.isBye ? 'BYE' : `T${m.a.id} — ${m.a.name}`;
+    const labelB = m.b.isBye ? 'BYE' : `T${m.b.id} — ${m.b.name}`;
+    div.innerHTML = `<div class="match-card" style="padding:10px;">
+      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
+      <div class="team-row"><div class="team-label">${labelA} ${(m.a.players && m.a.players.length)?'('+m.a.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+      <div style="height:6px"></div>
+      <div class="team-row"><div class="team-label">${labelB} ${(m.b.players && m.b.players.length)?'('+m.b.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+    </div>`;
+    inner.appendChild(div.firstChild);
+  });
+
+  const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='flex-end'; row.style.marginTop='8px';
+  const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Proceed to Semifinals';
+  btn.addEventListener('click', function(){ try { proceedFromQuarterfinals(); } catch(e){ console.error(e); alert('Error when processing QF — see console.'); } });
+  row.appendChild(btn);
+  inner.appendChild(row);
+
+  $('knockoutsCard').style.display = 'block';
+}
+
+/* validate QF and determine winners, then build SF */
 function proceedFromQuarterfinals(){
-  if (!knockout.qfs || knockout.qfs.length !== 4) return alert('Quarterfinals not configured.');
+  if (!knockout || !knockout.qf) return alert('Quarterfinals not present.');
   const winners = [];
-  for (let i=0;i<4;i++){
-    const m = knockout.qfs[i];
-    const s1 = $(`${m.id}-s1`), s2 = $(`${m.id}-s2`);
-    if (!s1 || !s2) return alert(`Scores missing for ${m.id}.`);
-    const v1 = Number(s1.value), v2 = Number(s2.value);
-    if (isNaN(v1) || isNaN(v2)) return alert(`Enter both scores for ${m.id}.`);
-    if (v1 === v2) return alert(`${m.id}: tie detected; ties not allowed.`);
+
+  for (let i=0;i<knockout.qf.length;i++){
+    const m = knockout.qf[i];
+    if (m.a.isBye && !m.b.isBye) { winners.push(m.b); continue; }
+    if (m.b.isBye && !m.a.isBye) { winners.push(m.a); continue; }
+    if (m.a.isBye && m.b.isBye) { winners.push({ id:'BYE', name:'BYE', players:[], isBye:true }); continue; }
+
+    const s1El = $(`${m.id}-s1`), s2El = $(`${m.id}-s2`);
+    if (!s1El || !s2El) return alert(`${m.id}: score fields missing.`);
+    const v1 = s1El.value === '' ? NaN : Number(s1El.value);
+    const v2 = s2El.value === '' ? NaN : Number(s2El.value);
+    if (Number.isNaN(v1) || Number.isNaN(v2)) return alert(`${m.id}: both scores required.`);
+    if (v1 === v2) return alert(`${m.id}: tie detected. Ties are not allowed.`);
     winners.push(v1 > v2 ? m.a : m.b);
   }
-  // SF1: winner(QF1) vs winner(QF4); SF2: winner(QF2) vs winner(QF3)
-  knockout.sf1 = { id:'SF1', a: winners[0], b: winners[3] };
-  knockout.sf2 = { id:'SF2', a: winners[1], b: winners[2] };
-  knockout.qfs = null; // clear qfs
-  renderKnockoutStage('Semifinals', [knockout.sf1, knockout.sf2], 'proceedFromSemifinals()');
+
+  // SF1: winner(QF1) vs winner(QF4)
+  // SF2: winner(QF2) vs winner(QF3)
+  knockout.sf1 = { id:'SF1', name:'Semifinal 1', a: winners[0], b: winners[3] };
+  knockout.sf2 = { id:'SF2', name:'Semifinal 2', a: winners[1], b: winners[2] };
+  knockout.qf = null; // clear QF after using
+  renderSemifinals();
+  updateBanner('Semifinals');
 }
 
-/* Prepare Semifinals directly from RR (no QF) */
+/* ---------- Semifinals when no QF ---------- */
 function prepareSemifinals(){
-  const seeds = getSeedList();
-  if (seeds.length < 4) return alert('Need at least 4 qualifiers for Semifinals.');
-  knockout.sf1 = { id:'SF1', a: seeds[0], b: seeds[3] };
-  knockout.sf2 = { id:'SF2', a: seeds[1], b: seeds[2] };
-  renderKnockoutStage('Semifinals', [knockout.sf1, knockout.sf2], 'proceedFromSemifinals()');
-}
-
-/* Validate SF scores and prepare Finals + 3rd place */
-function proceedFromSemifinals(){
-  if (!knockout.sf1 || !knockout.sf2) return alert('Semifinals not configured.');
-  const winners = [], losers = [];
-  for (let i=1;i<=2;i++){
-    const id = `SF${i}`;
-    const s1 = $(`${id}-s1`), s2 = $(`${id}-s2`);
-    if (!s1 || !s2) return alert(`Scores missing for ${id}.`);
-    const v1 = Number(s1.value), v2 = Number(s2.value);
-    if (isNaN(v1) || isNaN(v2)) return alert(`Enter both scores for ${id}.`);
-    if (v1 === v2) return alert(`${id}: tie detected; ties not allowed.`);
-    if (v1 > v2){ winners.push(knockout[id.toLowerCase()].a); losers.push(knockout[id.toLowerCase()].b); }
-    else { winners.push(knockout[id.toLowerCase()].b); losers.push(knockout[id.toLowerCase()].a); }
+  const rrType = $('rrType').value;
+  let sf1 = null, sf2 = null;
+  if (rrType === 'across') {
+    const all = rankings['all'] || [];
+    if (!all || all.length < 4) return alert('Need at least 4 teams for semifinals.');
+    sf1 = { id:'SF1', name:'Semifinal 1', a: all[0], b: all[3] };
+    sf2 = { id:'SF2', name:'Semifinal 2', a: all[1], b: all[2] };
+  } else {
+    const g1 = rankings[1] || [], g2 = rankings[2] || [];
+    if (!g1 || !g2 || g1.length < 2 || g2.length < 2) return alert('Need Group 1 and Group 2 with at least 2 teams each for semifinals.');
+    sf1 = { id:'SF1', name:'Semifinal 1', a: g1[0], b: g2[1] };
+    sf2 = { id:'SF2', name:'Semifinal 2', a: g2[0], b: g1[1] };
   }
-  knockout.final = { id:'FINAL', a: winners[0], b: winners[1] };
-  knockout.third  = { id:'THIRD', a: losers[0],  b: losers[1] };
-  renderKnockoutStage('Final & 3rd Place', [knockout.final, knockout.third], null);
+  knockout = { qf:null, sf1, sf2, final:null, third:null };
+  renderSemifinals();
+  updateBanner('Semifinals');
 }
 
-/* Finalization: validate final/third scores and show results — called via UI button we render */
+function renderSemifinals(){
+  const inner = $('knockoutsInner'); inner.innerHTML = '';
+  if (!knockout || !knockout.sf1) return;
+
+  [knockout.sf1, knockout.sf2].forEach(match => {
+    const div = document.createElement('div'); div.style.marginBottom='8px';
+    const aLabel = match.a.isBye ? 'BYE' : `T${match.a.id} — ${match.a.name}`;
+    const bLabel = match.b.isBye ? 'BYE' : `T${match.b.id} — ${match.b.name}`;
+    div.innerHTML = `<div class="match-card" style="padding:10px;">
+      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${match.name}</div>
+      <div class="team-row"><div class="team-label">${aLabel} ${(match.a.players && match.a.players.length)?'('+match.a.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+      <div style="height:6px"></div>
+      <div class="team-row"><div class="team-label">${bLabel} ${(match.b.players && match.b.players.length)?'('+match.b.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+    </div>`;
+    inner.appendChild(div.firstChild);
+  });
+
+  const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='flex-end'; row.style.marginTop='8px';
+  const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Proceed to Final & 3rd Place';
+  btn.onclick = proceedToFinals;
+  row.appendChild(btn);
+  inner.appendChild(row);
+
+  $('knockoutsCard').style.display = 'block';
+}
+
+/* ---------- Proceed to Final ---------- */
+function proceedToFinals(){
+  if (!knockout || !knockout.sf1 || !knockout.sf2) return alert('Semifinals not configured.');
+
+  const sfMatches = [knockout.sf1, knockout.sf2];
+  const winners = [], losers = [];
+  for (let i=0;i<sfMatches.length;i++){
+    const m = sfMatches[i];
+    if (m.a.isBye && !m.b.isBye) { winners.push(m.b); losers.push(m.a); continue; }
+    if (m.b.isBye && !m.a.isBye) { winners.push(m.a); losers.push(m.b); continue; }
+    if (m.a.isBye && m.b.isBye) { winners.push({ id:'BYE', name:'BYE', players:[], isBye:true }); losers.push({ id:'BYE', name:'BYE', players:[], isBye:true }); continue; }
+
+    const s1El = $(`${m.id}-s1`), s2El = $(`${m.id}-s2`);
+    if (!s1El || !s2El) return alert(`${m.id}: score fields missing.`);
+    const v1 = s1El.value === '' ? NaN : Number(s1El.value);
+    const v2 = s2El.value === '' ? NaN : Number(s2El.value);
+    if (Number.isNaN(v1) || Number.isNaN(v2)) return alert(`${m.id}: both scores required.`);
+    if (v1 === v2) return alert(`${m.id}: tie detected. Ties are not allowed.`);
+    if (v1 > v2) { winners.push(m.a); losers.push(m.b); } else { winners.push(m.b); losers.push(m.a); }
+  }
+
+  knockout.final = { id:'FINAL', name:'Final', a: winners[0], b: winners[1] };
+  knockout.third  = { id:'THIRD', name:'3rd Place', a: losers[0], b: losers[1] };
+
+  renderFinals();
+  updateBanner('Finals & 3rd Place');
+}
+
+/* ---------- Render Final & 3rd ---------- */
+function renderFinals(){
+  const inner = $('knockoutsInner'); inner.innerHTML = '';
+  const mkMatch = (label, match) => {
+    const div = document.createElement('div'); div.style.marginBottom='10px';
+    const aLabel = match.a.isBye ? 'BYE' : `T${match.a.id} — ${match.a.name}`;
+    const bLabel = match.b.isBye ? 'BYE' : `T${match.b.id} — ${match.b.name}`;
+    div.innerHTML = `<div class="match-card" style="padding:10px;">
+      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${label}</div>
+      <div class="team-row"><div class="team-label">${aLabel} ${(match.a.players && match.a.players.length)?'('+match.a.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${label}-s1" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+      <div style="height:6px"></div>
+      <div class="team-row"><div class="team-label">${bLabel} ${(match.b.players && match.b.players.length)?'('+match.b.players.join(' & ')+')':''}</div><div style="margin-left:auto"><input id="${label}-s2" class="score-input" type="number" min="0" placeholder="Score"></div></div>
+    </div>`;
+    return div.firstChild;
+  };
+
+  inner.appendChild(mkMatch('FINAL', knockout.final));
+  inner.appendChild(mkMatch('THIRD', knockout.third));
+
+  const doneRow = document.createElement('div'); doneRow.style.display='flex'; doneRow.style.justifyContent='flex-end'; doneRow.style.marginTop='10px';
+  const doneBtn = document.createElement('button'); doneBtn.className='btn'; doneBtn.textContent='Finalize Knockouts';
+  doneBtn.onclick = finalizeKnockouts;
+  doneRow.appendChild(doneBtn);
+  inner.appendChild(doneRow);
+
+  $('knockoutsCard').style.display = 'block';
+}
+
+/* ---------- Finalize (validate and show winners) ---------- */
 function finalizeKnockouts(){
-  // final
   const f1 = $('FINAL-s1'), f2 = $('FINAL-s2');
   const t1 = $('THIRD-s1'), t2 = $('THIRD-s2');
-  if (!f1 || !f2 || !t1 || !t2) return alert('Final/3rd place score fields missing.');
-  const vF1 = Number(f1.value), vF2 = Number(f2.value), vT1 = Number(t1.value), vT2 = Number(t2.value);
-  if ([vF1,vF2,vT1,vT2].some(v => isNaN(v))) return alert('Enter all knockout match scores.');
-  if (vF1 === vF2 || vT1 === vT2) return alert('Ties are not allowed in knockouts.');
+  if (!f1 || !f2 || !t1 || !t2) return alert('Final/3rd place inputs missing.');
+
+  const vF1 = f1.value === '' ? NaN : Number(f1.value);
+  const vF2 = f2.value === '' ? NaN : Number(f2.value);
+  const vT1 = t1.value === '' ? NaN : Number(t1.value);
+  const vT2 = t2.value === '' ? NaN : Number(t2.value);
+  if (Number.isNaN(vF1) || Number.isNaN(vF2) || Number.isNaN(vT1) || Number.isNaN(vT2)) return alert('All knockout match scores must be entered.');
+  if (vF1 === vF2 || vT1 === vT2) return alert('Ties are not allowed in knockout matches.');
 
   const finalWinner = vF1 > vF2 ? knockout.final.a : knockout.final.b;
   const finalRunner  = vF1 > vF2 ? knockout.final.b : knockout.final.a;
   const thirdWinner  = vT1 > vT2 ? knockout.third.a : knockout.third.b;
   const thirdRunner  = vT1 > vT2 ? knockout.third.b : knockout.third.a;
 
-  alert(`Knockouts complete\n\nWinner: ${finalWinner.name}\nRunner-up: ${finalRunner.name}\n3rd Place: ${thirdWinner.name}\n4th Place: ${thirdRunner.name}`);
+  const summary = `Knockouts complete.\n\nWinner: ${finalWinner.isBye ? 'BYE' : 'T'+finalWinner.id + ' — ' + finalWinner.name}\nRunner-up: ${finalRunner.isBye ? 'BYE' : 'T'+finalRunner.id + ' — ' + finalRunner.name}\n3rd Place: ${thirdWinner.isBye ? 'BYE' : 'T'+thirdWinner.id + ' — ' + thirdWinner.name}\n4th Place: ${thirdRunner.isBye ? 'BYE' : 'T'+thirdRunner.id + ' — ' + thirdRunner.name}`;
+  alert(summary);
   updateBanner('Tournament Complete');
 }
 
-/* ---------- Render Knockout Stage helper ---------- */
-function renderKnockoutStage(stageName, matches, nextAction){
-  const inner = $('knockoutsInner'); inner.innerHTML = '';
-  matches.forEach((m, idx) => {
-    const id = m.id || `${stageName.substring(0,3).toUpperCase()}${idx+1}`;
-    const div = document.createElement('div'); div.className = 'match-card';
-    div.innerHTML = `
-      <div style="font-weight:700;margin-bottom:6px;color:#eaf4ff;">${(stageName.includes('Quarter')? 'Quarterfinal': (stageName.includes('Semi')? 'Semifinal' : (stageName.includes('Final')? (idx===0?'Final':'3rd Place') : stageName)) )}</div>
-      <div class="team-row"><div class="team-label">${m.a.name}</div><input id="${id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
-      <div class="team-row"><div class="team-label">${m.b.name}</div><input id="${id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
-    `;
-    inner.appendChild(div);
+/* ---------- Export / Print ---------- */
+function exportRankingsCSV(){
+  if (!rankings || Object.keys(rankings).length===0) return alert('No rankings to export. Generate Round-Robin Rankings first.');
+  const rows = [['Group','Rank','ID','Name','Players','MatchesWon','PtsWon','PtsLost','Diff']];
+  Object.keys(rankings).forEach(g=>{
+    (rankings[g]||[]).forEach(r=>{
+      rows.push([
+        g,
+        String(r.rank || ''),
+        String(r.id || ''),
+        String(r.name || '').replace(/"/g,'""'),
+        String((r.players||[]).join(' & ')).replace(/"/g,'""'),
+        String(r.matchesWon || 0),
+        String(r.ptsWon || 0),
+        String(r.ptsLost || 0),
+        String(r.diff || 0)
+      ]);
+    });
   });
-
-  // action button: either nextAction (string to evaluate) or finalize
-  if (nextAction){
-    const row = document.createElement('div'); row.style.marginTop='8px'; row.style.display='flex'; row.style.justifyContent='flex-end';
-    const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Proceed';
-    btn.onclick = function(){
-      try {
-        // evaluate the nextAction function name string safely by mapping known names
-        if (nextAction === 'proceedFromQuarterfinals()') proceedFromQuarterfinals();
-        else if (nextAction === 'proceedFromSemifinals()') proceedFromSemifinals();
-        else if (nextAction === 'prepareFinalsFromSF()') proceedFromSemifinals();
-        else if (nextAction === 'prepareSemifinalsFromQF()') proceedFromQuarterfinals();
-        else { /* fallback eval (not generally recommended) */ eval(nextAction); }
-      } catch (e){ console.error(e); alert('Error while proceeding.'); }
-    };
-    row.appendChild(btn);
-    inner.appendChild(row);
-  } else {
-    // render finalize button for final/3rd place
-    const row = document.createElement('div'); row.style.marginTop='8px'; row.style.display='flex'; row.style.justifyContent='flex-end';
-    const finalizeBtn = document.createElement('button'); finalizeBtn.className='btn'; finalizeBtn.textContent='Finalize Knockouts';
-    finalizeBtn.onclick = finalizeKnockouts;
-    row.appendChild(finalizeBtn);
-    inner.appendChild(row);
-  }
-
-  $('knockoutsCard').style.display = 'block';
-  updateBanner(stageName);
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'rankings.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
 }
 
-/* ---------- Utility exposures for console debugging (if needed) ---------- */
-window.startEntry = startEntry;
-window.saveTeams = saveTeams;
-window.generateFixtures = generateFixtures;
-window.generateFinalRanking = generateFinalRanking;
+/* ---------- Initialization & bindings ---------- */
+function bindUI(){
+  // top-level buttons
+  const startBtn = $('startEntryBtn'); if (startBtn) startBtn.addEventListener('click', startEntry);
+  const genRR = $('genRRBtn'); if (genRR) genRR.addEventListener('click', generateFinalRanking);
+  const backBtn = $('backToSummaryBtn'); if (backBtn) backBtn.addEventListener('click', showSummary);
+  const quickF = $('quickGenFixtures'); if (quickF) quickF.addEventListener('click', generateFixtures);
+  const quickR = $('quickGenRanks'); if (quickR) quickR.addEventListener('click', generateFinalRanking);
+
+  // delegated save/cancel (these appear dynamically)
+  document.body.addEventListener('click', function(e){
+    if (e.target && e.target.id === 'saveTeamsBtn') saveTeams();
+    if (e.target && e.target.id === 'cancelEntryBtn') cancelEntry();
+    if (e.target && e.target.id === 'genFixturesBtn') generateFixtures();
+    if (e.target && e.target.id === 'editEntryBtn') startEntry();
+  });
+
+  // ranking buttons (may be hidden / shown)
+  const qfBtn = $('toQFBtn'); if (qfBtn) qfBtn.addEventListener('click', function(){ try { prepareQuarterfinals(); } catch(e){ console.error(e); alert('Error creating quarterfinals.'); } });
+  const sfBtn = $('toSemisBtn'); if (sfBtn) sfBtn.addEventListener('click', function(){ try { prepareSemifinals(); } catch(e){ console.error(e); alert('Error creating semifinals.'); } });
+
+  // exports
+  const printBtn = $('printBtn'); if (printBtn) printBtn.addEventListener('click', ()=> window.print());
+  const csvBtn = $('exportCSVBtn'); if (csvBtn) csvBtn.addEventListener('click', exportRankingsCSV);
+}
+
+/* ---------- Initialization ---------- */
+(function init(){
+  onGameTypeChange();
+  onQualifiersChange();
+  bindUI();
+})();
+
+/* Expose quick helpers for console if needed */
 window.prepareQuarterfinals = prepareQuarterfinals;
 window.prepareSemifinals = prepareSemifinals;
-window.proceedFromQuarterfinals = proceedFromQuarterfinals;
-window.proceedFromSemifinals = proceedFromSemifinals;
-window.finalizeKnockouts = finalizeKnockouts;
+window.generateFinalRanking = generateFinalRanking;
+window.generateFixtures = generateFixtures;
+window.startEntry = startEntry;
+window.saveTeams = saveTeams;
 </script>
 </body>
 </html>
