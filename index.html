@@ -41,6 +41,33 @@
     background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
   }
 
+/* --- Dropdown visual improvements --- */
+
+/* 1️⃣ Specific to Round-Robin Type dropdown */
+#rrType {
+  font-size: 12px; /* slightly smaller so "Within Groups" fits neatly */
+}
+
+/* 2️⃣ Universal dropdown visibility fix */
+select {
+  background-color: rgba(255, 255, 255, 0.1); /* lighter base so all options are visible */
+  color: var(--card-text);
+}
+
+/* Style the open dropdown options */
+select option {
+  background-color: #102238; /* visible dark navy backdrop */
+  color: #e7f3ff;            /* light text for readability */
+}
+
+/* Highlight hovered/selected option distinctly */
+select option:hover,
+select option:focus {
+  background-color: var(--gold); /* golden highlight */
+  color: #102238;                /* dark text on gold */
+}
+
+
   .btn { background:var(--gold); color:#102238; border:none; padding:8px 10px; font-weight:700; border-radius:8px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:13px; }
   .btn:hover{ background:var(--gold-hover); }
   .btn.ghost { background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.04); padding:7px 9px; }
