@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pickleball Tournament Scheduler</title>
+<meta name="description" content="A compact, mobile-friendly web app to create fixtures, record scores, and generate live rankings and knockouts for pickleball tournaments — no spreadsheets needed."/>
+<style>
+  :root{
+    --page-bg:#f5f6f7;
+    --card-bg:#0f2435;
+    --gold:#d4af37;
+    --gold-hover:#e5c157;
+    --muted:#9aa6b4;
+    --card-text:#e7f3ff;
+    --white:#ffffff;
+    --radius:8px;
+    --maxwidth:1200px;
+    --shadow:0 6px 18px rgba(2,8,25,0.12);
+  }
+
+  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--page-bg);color:#102238;-webkit-font-smoothing:antialiased;}
+  .banner{position:fixed;top:0;left:0;right:0;height:30px;display:flex;align-items:center;padding:0 12px;background:var(--card-bg);color:var(--card-text);box-shadow:0 4px 14px rgba(2,6,23,0.2);z-index:999;font-weight:700;font-size:13px;}
+  .wrap{max-width:var(--maxwidth);margin:40px auto 18px;padding:8px;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .subtitle{color:var(--muted);font-size:12px;margin-top:2px;}
+  .grid{display:grid;grid-template-columns:1fr 340px;gap:12px;}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr;} }
+  .card{background:var(--card-bg);color:var(--card-text);border-radius:var(--radius);padding:10px;box-shadow:var(--shadow);}
+  .title{font-weight:700;color:#eaf4ff;margin:0 0 6px;font-size:14px;}
+  .muted{color:var(--muted);font-size:12px;}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  input[type="text"], input[type="number"], select {
+    width:100%; box-sizing:border-box; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
+  }
+
+  /* smaller font + padding only for Round-Robin Type */
+  select#rrType { font-size:12px; padding:6px; }
+
+  .btn { background:var(--gold); color:#102238; border:none; padding:8px 10px; font-weight:700; border-radius:8px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:13px; }
+  .btn:hover{ background:var(--gold-hover); }
+  .btn.ghost { background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.04); padding:7px 9px; }
+  .btn.small { padding:6px 8px; font-size:12px; }
+  .btn.block { display:block; width:100%; }
+  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:8px; }
+  @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(5, minmax(90px, 1fr)); } }
+  @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
+  @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width:420px){ .setup-row{ grid-template-columns: 1fr; } }
+  .action-row { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:8px; }
+  @media (max-width:420px){ .action-row{ flex-direction:column; } .action-row .btn{ width:100%; } }
+  .match-grid{ display:grid; grid-template-columns: repeat(auto-fill,minmax(300px,1fr)); gap:10px; margin-top:10px; }
+  @media (max-width:600px){ .match-grid{ grid-template-columns:1fr; } }
+  .match-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:8px; padding:10px; border:1px solid rgba(255,255,255,0.04); color:var(--card-text); }
+  .match-title{ font-weight:700; color:#eaf4ff; margin-bottom:6px; font-size:13px; }
+  .team-label { font-size:13px; color:#eaf4ff; font-weight:600; }
+  .team-players { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .score-input{ width:72px; padding:7px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:60px; }
+  .white-table { width:100%; border-collapse:collapse; background:var(--white); color:#102238; border-radius:8px; overflow:hidden; margin-top:10px; }
+  .white-table th, .white-table td { padding:8px; border-bottom:1px solid #e6eaee; text-align:left; font-size:12px; }
+  .white-table thead th { background:#f1f5f8; color:#667085; font-weight:700; }
+  @media (max-width:420px){ .wrap{ margin-top:36px; padding:8px; } .card{ padding:8px; border-radius:6px; } label{font-size:11px;} .banner{height:28px;font-size:12px;} }
+  @media print{ .banner{display:none;} }
+</style>
+</head>
+<body>
+  <div class="banner" id="stageBanner">Current Stage: Round Robin</div>
+
+  <div class="wrap">
+    <header>
+      <div></div>
+    </header>
+
+    <div class="grid">
+      <!-- LEFT -->
+      <div>
+        <!-- SETUP -->
+        <div class="card">
+          <div class="title">Setup</div>
+          <div class="setup-row">
+            <div>
+              <label>Game Type</label>
+              <select id="gameType" onchange="onGameTypeChange()">
+                <option value="doubles" selected>Doubles</option>
+                <option value="singles">Singles</option>
+              </select>
+            </div>
+
+            <div>
+              <label id="numLabel">No. of Teams</label>
+              <input id="numTeams" type="number" min="2" value="6" oninput="updateQualifierDefaults()">
+            </div>
+
+            <div>
+              <label>No. of Courts</label>
+              <input id="numCourts" type="number" min="1" value="2">
+            </div>
+
+            <div>
+              <label>No. of Groups</label>
+              <input id="numGroups" type="number" min="1" value="1" oninput="updateQualifierDefaults()">
+            </div>
+
+            <!-- RR Type moved here -->
+            <div>
+              <label>Round-Robin Type</label>
+              <select id="rrType">
+                <option value="within" selected>Within Groups</option>
+                <option value="across">Across All</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Qualifiers/group</label>
+              <select id="qualPerGroup" onchange="onQualPerGroupManual()">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+
+            <div>
+              <label><input id="enableQF" type="checkbox"> Enable QF</label>
+              <div class="muted" style="font-size:11px;" id="qfHelp">QF will only run when total qualifiers ≥ 8 (and QF enabled).</div>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="btn" id="startEntryBtn">Next: Enter Details</button>
+            <button class="btn ghost" id="resetBtn">Reset All</button>
+          </div>
+        </div>
+
+        <!-- ENTRY -->
+        <div id="entryCard" class="card" style="margin-top:12px; display:none;">
+          <div class="title" id="entryTitle">Enter Teams & Players</div>
+          <div id="entryInner"></div>
+        </div>
+
+        <!-- GROUP SUMMARY -->
+        <div id="summaryCard" class="card" style="margin-top:12px; display:none;">
+          <div class="title">Group Summary</div>
+          <div id="summaryInner"></div>
+        </div>
+
+        <!-- FIXTURES -->
+        <div id="fixturesCard" class="card" style="margin-top:12px; display:none;">
+          <div class="title">Fixtures — Enter Scores</div>
+          <div id="fixturesGrid" class="match-grid"></div>
+
+          <div class="action-row">
+            <button class="btn" id="genRRBtn">Generate Round-Robin Rankings</button>
+            <button class="btn ghost" id="backToSummaryBtn">Back</button>
+          </div>
+          <div class="muted" style="margin-top:8px;">Enter both team scores for a match to count. No ties allowed.</div>
+        </div>
+
+        <!-- RANKINGS -->
+        <div id="rankingsCard" class="card" style="margin-top:12px; display:none;">
+          <div class="title">🏆 Round-Robin Rankings</div>
+          <div id="rankingsInner"></div>
+
+          <div class="action-row" style="margin-top:10px;">
+            <button class="btn" id="proceedKO">Proceed to Knockouts</button>
+            <button class="btn ghost" id="exportCSVBtn">Export Rankings (CSV)</button>
+            <button class="btn ghost" id="printBtn">Print / Save as PDF</button>
+          </div>
+        </div>
+
+        <!-- KNOCKOUTS -->
+        <div id="knockoutsCard" class="card" style="margin-top:12px; display:none;">
+          <div class="title">Knockout Stage</div>
+          <div id="knockoutsInner"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: quick actions + notes -->
+      <div>
+        <div class="card">
+          <div class="title">Quick Actions</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+            <button class="btn small" id="quickGenFixtures">Generate Fixtures</button>
+            <button class="btn small" id="quickGenRanks">Generate Round-Robin Rankings</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <div class="title">Notes</div>
+          <div class="muted" style="margin-top:6px;">
+            • Round-robin totals exclude knockout matches.<br>
+            • If total qualifiers = 4 → Semifinals (1v4,2v3).<br>
+            • If total qualifiers ≥ 8 and QF enabled → Quarterfinals (top 8 seeded).<br>
+            • Enter both scores for a match to count; ties are not allowed.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer style="margin-top:12px;font-size:12px;color:var(--muted);">Prompt-designed by Megh Kalyanasundaram</footer>
+  </div>
+
+<script>
+/* ---------- App State ---------- */
+let teams = [];        // {id,name,players[],group}
+let fixtures = [];     // {id,matchNum,court,group,t1,t2}
+let rankings = {};     // groupKey -> [stat objects]
+let knockout = {};     // { qf:[{id,a,b}], sf1, sf2, final, third }
+
+const $ = id => document.getElementById(id);
+function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
+updateBanner('Round Robin');
+
+function clampInt(v, min) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
+
+/* ---------- Qualifier defaults logic ---------- */
+function updateQualifierDefaults(){
+  const numTeams = clampInt($('numTeams').value, 0);
+  const numGroups = clampInt($('numGroups').value, 1);
+  const qualSelect = $('qualPerGroup');
+
+  if (numGroups === 1) {
+    if (numTeams >= 8) qualSelect.value = '8';
+    else if (numTeams >= 4) qualSelect.value = '4';
+    else if (numTeams >= 2) qualSelect.value = '2';
+    else qualSelect.value = '1';
+  } else {
+    qualSelect.value = '2';
+  }
+
+  const totalQuals = Number(qualSelect.value) * numGroups;
+  if (totalQuals >= 8) $('enableQF').disabled = false;
+  else { $('enableQF').disabled = true; $('enableQF').checked = false; }
+}
+
+function onQualPerGroupManual(){
+  const numGroups = clampInt($('numGroups').value, 1);
+  const totalQuals = Number($('qualPerGroup').value) * numGroups;
+  $('enableQF').disabled = !(totalQuals >= 8);
+  if ($('enableQF').disabled) $('enableQF').checked = false;
+}
+
+/* ---------- Entry flow ---------- */
+function onGameTypeChange(){
+  const type = $('gameType').value;
+  $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
+  $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
+}
+
+function startEntry(){
+  const n = clampInt($('numTeams').value, 0);
+  if (n < 2) { alert('Please enter at least 2 participants.'); return; }
+  const type = $('gameType').value;
+  let html = '';
+  for (let i=1;i<=n;i++){
+    html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
+    if (type === 'singles'){
+      html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label><input id="pA_${i}" type="text" placeholder="Player name">`;
+    } else {
+      html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
+        <div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"></div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" id="saveTeamsBtn">Save</button><button class="btn ghost" id="cancelEntryBtn">Cancel</button></div>`;
+  $('entryInner').innerHTML = html;
+  $('entryCard').style.display = 'block';
+  $('fixturesCard').style.display = 'none';
+  $('rankingsCard').style.display = 'none';
+  updateBanner('Entry');
+
+  // populate if existing
+  for (let i=1;i<=n;i++){
+    const t = teams[i-1];
+    if (t){
+      if ($(`pA_${i}`)) $(`pA_${i}`).value = (t.players && t.players[0]) || (t.name && t.name.startsWith('Player') ? '' : t.name) || '';
+      if ($(`pB_${i}`) && t.players) $(`pB_${i}`).value = t.players[1] || '';
+    }
+  }
+
+  $('saveTeamsBtn').onclick = saveTeams;
+  $('cancelEntryBtn').onclick = cancelEntry;
+}
+
+function cancelEntry(){ $('entryInner').innerHTML=''; $('entryCard').style.display='none'; updateBanner('Round Robin'); }
+
+function saveTeams(){
+  const n = clampInt($('numTeams').value, 0);
+  const type = $('gameType').value;
+  teams = [];
+  for (let i=1;i<=n;i++){
+    const v1 = ($(`pA_${i}`)?.value || '').trim();
+    const v2 = ($(`pB_${i}`)?.value || '').trim();
+    const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
+    const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
+    const name = (players.length > 0 && type === 'singles') ? players[0] : (players.length > 0 && type==='doubles' ? `${players.join(' & ')}` : defaultName);
+    teams.push({ id:i, name, players, group:null });
+  }
+  assignGroups();
+}
+
+/* ---------- Groups ---------- */
+function assignGroups(){
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  teams.forEach((t, idx) => t.group = (idx % numGroups) + 1);
+  showGroupSummary();
+}
+
+function showGroupSummary(){
+  if (!teams || teams.length === 0) return alert('No participants defined.');
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  const groups = Array.from({length:numGroups}, ()=>[]);
+  teams.forEach(t=> groups[t.group-1].push(t));
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
+  groups.forEach((g,i)=>{
+    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th></tr></thead><tbody>`;
+    if (g.length===0) html += `<tr><td colspan="2" class="muted">No entries</td></tr>`;
+    else g.forEach(t => html += `<tr><td>${t.name}</td><td>${(t.players||[]).join(' & ')}</td></tr>`);
+    html += '</tbody></table></div>';
+  });
+  html += '</div>';
+  html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;"><button class="btn" id="genFixturesBtn">Generate Fixtures</button><button class="btn ghost" id="editEntryBtn">Edit</button></div>`;
+  $('summaryInner').innerHTML = html;
+  $('summaryCard').style.display = 'block';
+  $('entryCard').style.display = 'none';
+  updateBanner('Group Summary');
+
+  $('genFixturesBtn').onclick = generateFixtures;
+  $('editEntryBtn').onclick = startEntry;
+}
+
+/* ---------- Fixtures ---------- */
+function generateFixtures(){
+  if (!teams || teams.length < 2) return alert('Please add participants first.');
+  const numCourts = Math.max(1, Number($('numCourts').value) || 1);
+  const rrType = $('rrType').value;
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  teams.forEach((t,idx) => { if (!t.group) t.group = (idx % numGroups) + 1; });
+
+  let rawFixtures = [];
+  if (rrType === 'across'){
+    rawFixtures = roundRobin(teams, 'all');
+  } else {
+    const groups = {};
+    teams.forEach(t => { if (!groups[t.group]) groups[t.group] = []; groups[t.group].push(t); });
+    Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
+  }
+
+  fixtures = rawFixtures.map((f, idx) => ({
+    id: idx,
+    matchNum: idx+1,
+    court: (idx % numCourts) + 1,
+    group: f.group,
+    t1: f.t1,
+    t2: f.t2
+  }));
+
+  renderFixtures();
+}
+
+function roundRobin(list, groupKey){
+  const arr = [...list];
+  if (arr.length % 2 !== 0) arr.push({ id:null, name:'BYE', players:[] });
+  const n = arr.length;
+  const rounds = n-1;
+  let order = arr.slice();
+  const out = [];
+  for (let r=0;r<rounds;r++){
+    for (let i=0;i<n/2;i++){
+      const a = order[i], b = order[n-1-i];
+      if (a.name !== 'BYE' && b.name !== 'BYE') out.push({ group: groupKey, t1: a, t2: b });
+    }
+    order.splice(1,0,order.pop());
+  }
+  return out;
+}
+
+function renderFixtures(){
+  const grid = $('fixturesGrid'); grid.innerHTML = '';
+  fixtures.forEach(m=>{
+    const card = document.createElement('div'); card.className='match-card';
+    const groupLabel = (m.group === 'all' ? 'All' : m.group);
+    card.innerHTML = `
+      <div class="match-title">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="flex:1"><div class="team-label">${m.t1.name}</div><div class="team-players">${(m.t1.players||[]).join(' & ')}</div></div>
+        <div style="margin-left:12px"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
+      </div>
+      <div style="height:8px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="flex:1"><div class="team-label">${m.t2.name}</div><div class="team-players">${(m.t2.players||[]).join(' & ')}</div></div>
+        <div style="margin-left:12px"><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  $('fixturesCard').style.display = 'block';
+  $('rankingsCard').style.display = 'none';
+  updateBanner('Round Robin — Enter Scores');
+}
+
+/* ---------- Rankings (Round-Robin only) ---------- */
+function generateRoundRobinRankings(){
+  if (!fixtures || fixtures.length === 0) return alert('No fixtures. Generate fixtures first.');
+
+  // initialize stats
+  const stats = {};
+  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0 });
+
+  // iterate fixtures; only count matches where both scores entered and not knockout
+  for (const m of fixtures){
+    const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
+    if (!s1El || !s2El) continue;
+    const s1 = s1El.value === '' ? NaN : Number(s1El.value);
+    const s2 = s2El.value === '' ? NaN : Number(s2El.value);
+    if (Number.isNaN(s1) && Number.isNaN(s2)) continue; // not played
+    if (Number.isNaN(s1) || Number.isNaN(s2)) return alert(`Match ${m.matchNum}: both scores required.`);
+    if (s1 === s2) return alert(`Match ${m.matchNum}: tie detected (${s1}). Ties are not allowed.`);
+
+    const winnerId = s1 > s2 ? m.t1.id : m.t2.id;
+    const loserId = s1 > s2 ? m.t2.id : m.t1.id;
+    const winnerScore = Math.max(s1, s2), loserScore = Math.min(s1, s2);
+
+    if (stats[winnerId]) { stats[winnerId].matchesWon += 1; stats[winnerId].ptsWon += winnerScore; stats[winnerId].ptsLost += loserScore; }
+    if (stats[loserId])  { stats[loserId].ptsWon += loserScore; stats[loserId].ptsLost += winnerScore; }
+  }
+
+  // group mapping based on rrType
+  const rrType = $('rrType').value;
+  const groupsMap = {};
+  if (rrType === 'across') {
+    groupsMap['all'] = Object.values(stats);
+  } else {
+    Object.values(stats).forEach(s => {
+      const g = s.group || 1;
+      if (!groupsMap[g]) groupsMap[g] = [];
+      groupsMap[g].push(s);
+    });
+  }
+
+  // compute diff and sort
+  rankings = {};
+  Object.keys(groupsMap).sort((a,b)=> (a==='all'? -1 : Number(a)-Number(b)) ).forEach(k=>{
+    const arr = groupsMap[k];
+    arr.forEach(x=> x.diff = (x.ptsWon||0) - (x.ptsLost||0));
+    arr.sort((a,b)=>{
+      if ((b.matchesWon||0) !== (a.matchesWon||0)) return (b.matchesWon||0) - (a.matchesWon||0);
+      return (b.diff||0) - (a.diff||0);
+    });
+    arr.forEach((s,i)=> s.rank = i+1);
+    rankings[k] = arr;
+  });
+
+  renderRankings();
+  updateBanner('Round-Robin Rankings');
+}
+
+/* ---------- Determine qualifiers ---------- */
+function getQualifiedList(){
+  const per = Math.max(1, Number($('qualPerGroup').value) || 1);
+  const rrType = $('rrType').value;
+  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+  const qualified = [];
+
+  if (rrType === 'across'){
+    const all = rankings['all'] || [];
+    const totalWanted = per * numGroups;
+    for (let i=0;i<Math.min(all.length, totalWanted); i++) qualified.push(all[i]);
+  } else {
+    const groupKeys = Object.keys(rankings).filter(k=>k!=='all').sort((a,b)=>Number(a)-Number(b));
+    groupKeys.forEach(k=>{
+      const arr = rankings[k] || [];
+      for (let i=0;i<Math.min(arr.length, per); i++) qualified.push(arr[i]);
+    });
+  }
+  return qualified;
+}
+
+/* ---------- PROCEED to Knockouts logic (Option A implemented) ---------- */
+function proceedToKnockouts(){
+  if (!rankings || Object.keys(rankings).length === 0) return alert('Generate Round-Robin Rankings first.');
+
+  const qualified = getQualifiedList();
+  if (qualified.length < 2) return alert('Not enough qualifiers.');
+
+  const totalQuals = qualified.length;
+  const qfEnabled = $('enableQF').checked;
+
+  if (totalQuals >= 8 && qfEnabled){
+    prepareQuarterfinals(qualified);
+  } else if (totalQuals >= 4){
+    prepareSemifinalsDirect(qualified);
+  } else if (totalQuals === 2){
+    prepareDirectFinal(qualified);
+  } else {
+    return alert('Insufficient qualifiers for knockouts (need at least 4 to run semifinals or 8 for quarterfinals).');
+  }
+}
+
+/* ---------- Quarterfinals (only when totalQuals >=8 and QF enabled) ---------- */
+function prepareQuarterfinals(qualifiedList){
+  const prepared = qualifiedList.slice(0,8);
+  const top8 = prepared;
+  const qfPairs = [
+    { id:'QF1', a: top8[0], b: top8[7] },
+    { id:'QF2', a: top8[3], b: top8[4] },
+    { id:'QF3', a: top8[1], b: top8[6] },
+    { id:'QF4', a: top8[2], b: top8[5] }
+  ];
+  knockout = { qf: qfPairs, sf1:null, sf2:null, final:null, third:null };
+  renderQuarterfinals();
+  updateBanner('Quarterfinals');
+}
+
+function renderQuarterfinals(){
+  const inner = $('knockoutsInner'); inner.innerHTML = '';
+  knockout.qf.forEach((m,idx)=>{
+    const div = document.createElement('div'); div.style.marginBottom='8px';
+    const aLabel = m.a.isBye ? 'BYE' : `${m.a.name}`;
+    const bLabel = m.b.isBye ? 'BYE' : `${m.b.name}`;
+    div.innerHTML = `<div class="match-card" style="padding:10px;">
+      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div style="flex:1" class="team-label">${aLabel}</div><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="height:8px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div style="flex:1" class="team-label">${bLabel}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
+    </div>`;
+    inner.appendChild(div.firstChild);
+  });
+
+  const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='flex-end'; row.style.marginTop='8px';
+  const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Proceed to Semifinals';
+  btn.onclick = processQuarterfinals;
+  row.appendChild(btn);
+  inner.appendChild(row);
+
+  $('knockoutsCard').style.display = 'block';
+}</doctext
