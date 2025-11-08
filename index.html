@@ -122,6 +122,15 @@
             </div>
 
             <div>
+              <label>Round-Robin Type</label>
+              <select id="rrType">
+                <option value="within" selected>Within Groups</option>
+                <option value="across">Across All</option>
+              </select>
+            </div>
+          </div>
+
+            <div>
               <label>Qualifiers/group</label>
               <select id="qualPerGroup" onchange="onQualPerGroupManual()">
                 <option value="1">1</option>
@@ -135,15 +144,6 @@
               <label><input id="enableQF" type="checkbox"> Enable QF</label>
               <div class="muted" style="font-size:11px;" id="qfHelp">QF will only run when total qualifiers ≥ 8 (and QF enabled).</div>
             </div>
-
-            <div>
-              <label>Round-Robin Type</label>
-              <select id="rrType">
-                <option value="within" selected>Within Groups</option>
-                <option value="across">Across All</option>
-              </select>
-            </div>
-          </div>
 
           <div class="action-row">
             <button class="btn" id="startEntryBtn">Next: Enter Details</button>
@@ -808,3 +808,4 @@ function bindUI(){
 </script>
 </body>
 </html>
+
