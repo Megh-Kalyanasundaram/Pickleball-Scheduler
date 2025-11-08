@@ -41,12 +41,32 @@
     background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
   }
 
-  /* --- Dropdown visual improvements --- */
-  /* specific RR type dropdown */
-  #rrType { font-size:12px; }
-  select { background-color: rgba(255,255,255,0.1); color: var(--card-text); }
-  select option { background-color: #102238; color: #e7f3ff; }
-  select option:hover, select option:focus { background-color: var(--gold); color:#102238; }
+/* --- Dropdown visual improvements --- */
+
+/* 1️⃣ Specific to Round-Robin Type dropdown */
+#rrType {
+  font-size: 12px; /* slightly smaller so "Within Groups" fits neatly */
+}
+
+/* 2️⃣ Universal dropdown visibility fix */
+select {
+  background-color: rgba(255, 255, 255, 0.1); /* lighter base so all options are visible */
+  color: var(--card-text);
+}
+
+/* Style the open dropdown options */
+select option {
+  background-color: #102238; /* visible dark navy backdrop */
+  color: #e7f3ff;            /* light text for readability */
+}
+
+/* Highlight hovered/selected option distinctly */
+select option:hover,
+select option:focus {
+  background-color: var(--gold); /* golden highlight */
+  color: #102238;                /* dark text on gold */
+}
+
 
   .btn { background:var(--gold); color:#102238; border:none; padding:8px 10px; font-weight:700; border-radius:8px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:13px; }
   .btn:hover{ background:var(--gold-hover); }
@@ -54,7 +74,7 @@
   .btn.small { padding:6px 8px; font-size:12px; }
   .btn.block { display:block; width:100%; }
 
-  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:8px; align-items:end; }
+  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:8px; }
   @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(5, minmax(90px, 1fr)); } }
   @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
   @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
@@ -94,6 +114,7 @@
 
   <div class="wrap">
     <header>
+      <!-- intentionally left blank to save vertical space -->
       <div></div>
     </header>
 
@@ -151,15 +172,9 @@
             </div>
           </div>
 
-          <div class="action-row" style="margin-top:8px;align-items:center;">
-            <div style="flex:1;display:flex;gap:8px;justify-content:flex-end;">
-              <button class="btn" id="startEntryBtn">Next: Enter Details</button>
-            </div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn ghost" id="resetBtn">Reset All</button>
-              <!-- Load button is hidden unless saves exist -->
-              <button class="btn ghost small" id="loadBtn" style="display:none;">Load</button>
-            </div>
+          <div class="action-row">
+            <button class="btn" id="startEntryBtn">Next: Enter Details</button>
+            <button class="btn ghost" id="resetBtn">Reset All</button>
           </div>
         </div>
 
@@ -167,18 +182,6 @@
         <div id="entryCard" class="card" style="margin-top:12px; display:none;">
           <div class="title" id="entryTitle">Enter Teams & Players</div>
           <div id="entryInner"></div>
-        </div>
-
-        <!-- tournament name area (shown when an active tournament exists) -->
-        <div id="tournamentInfo" class="card" style="margin-top:12px; display:none; align-items:center; justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-weight:700;color:#eaf4ff;">Tournament:</div>
-            <input id="tourneyName" type="text" style="background:transparent;border:0;color:var(--card-text);font-weight:700;font-size:14px;" />
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <div class="muted" id="tourneyMeta" style="font-size:12px;"></div>
-            <button class="btn small ghost" id="renameTourneyBtn" style="padding:6px 8px;">Rename</button>
-          </div>
         </div>
 
         <!-- GROUP SUMMARY -->
@@ -189,16 +192,10 @@
 
         <!-- FIXTURES -->
         <div id="fixturesCard" class="card" style="margin-top:12px; display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="title">Fixtures — Enter Scores</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <button class="btn small" id="manualSaveBtn" title="Save tournament">💾 Save</button>
-            </div>
-          </div>
-
+          <div class="title">Fixtures — Enter Scores</div>
           <div id="fixturesGrid" class="match-grid"></div>
 
-          <div class="action-row" style="margin-top:10px;">
+          <div class="action-row">
             <button class="btn" id="genRRBtn">Generate Round-Robin Rankings</button>
             <button class="btn ghost" id="backToSummaryBtn">Back</button>
           </div>
@@ -219,10 +216,7 @@
 
         <!-- KNOCKOUTS -->
         <div id="knockoutsCard" class="card" style="margin-top:12px; display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="title">Knockout Stage</div>
-            <div><button class="btn small" id="manualSaveBtnKO">💾 Save</button></div>
-          </div>
+          <div class="title">Knockout Stage</div>
           <div id="knockoutsInner"></div>
         </div>
       </div>
@@ -259,312 +253,48 @@ let fixtures = [];     // {id,matchNum,court,group,t1,t2}
 let rankings = {};     // groupKey -> [stat objects]
 let knockout = {};     // { qf:[{id,a,b}], sf1, sf2, final, third }
 
-let autosaveTimer = null;
-const AUTOSAVE_DELAY = 800; // ms
-
-/* ---------- Storage keys & helpers ---------- */
-const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1'; // stores array of tournaments
-const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
-
-/* ---------- DOM helper ---------- */
+/* ---------- Helpers ---------- */
 const $ = id => document.getElementById(id);
 function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
 updateBanner('Round Robin');
 
 function clampInt(v, min) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
 
-/* ---------- Tournament storage helpers ---------- */
-function readTournamentStore(){
-  try {
-    const raw = localStorage.getItem(TOURNAMENT_STORE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch(e) { console.error('readTournamentStore', e); return []; }
-}
-function writeTournamentStore(arr){
-  try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); }
-  catch(e){ console.error('writeTournamentStore', e); alert('Unable to write saved tournaments to local storage.'); }
-}
-function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
-function setActiveTournamentId(id){ if(id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); }
-function getActiveTournament(){
-  const id = getActiveTournamentId();
-  if (!id) return null;
-  return readTournamentStore().find(t => t.id === id) || null;
-}
+/* ---------- Qualifier defaults logic ---------- */
+function updateQualifierDefaults(){
+  const numTeams = clampInt($('numTeams').value, 0);
+  const numGroups = clampInt($('numGroups').value, 1);
+  const qualSelect = $('qualPerGroup');
 
-/* ---------- Snapshot serializer / deserializer ---------- */
-function snapshotCurrentState(){
-  const settings = {
-    gameType: $('gameType').value,
-    numTeams: Number($('numTeams').value) || 0,
-    numCourts: Number($('numCourts').value) || 1,
-    numGroups: Number($('numGroups').value) || 1,
-    qualPerGroup: Number($('qualPerGroup').value) || 1,
-    enableQF: !!$('enableQF').checked,
-    rrType: $('rrType').value
-  };
-
-  const teamsCopy = teams.map(t => ({ ...t }));
-  const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id }));
-
-  const fixtureScores = {};
-  fixtures.forEach(f => {
-    const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value : '';
-    const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value : '';
-    fixtureScores[f.id] = { s1, s2 };
-  });
-
-  // knockout scores & structure
-  const ko = { knockout: null, scores: {} };
-  if (knockout && (knockout.qf || knockout.sf1 || knockout.final || knockout.third)){
-    ko.knockout = knockout;
-    document.querySelectorAll('input.score-input').forEach(inp=>{
-      const id = inp.id || '';
-      if (id) ko.scores[id] = inp.value || '';
-    });
-  }
-
-  return { settings, teams: teamsCopy, fixtures: fixturesCopy, fixtureScores, ko, timestamp: Date.now() };
-}
-
-function restoreSnapshot(data){
-  if (!data) return;
-  const s = data.settings || {};
-  if (s.gameType) $('gameType').value = s.gameType;
-  if (s.numTeams) $('numTeams').value = s.numTeams;
-  if (s.numCourts) $('numCourts').value = s.numCourts;
-  if (s.numGroups) $('numGroups').value = s.numGroups;
-  if (s.qualPerGroup) $('qualPerGroup').value = s.qualPerGroup;
-  if (typeof s.enableQF !== 'undefined') $('enableQF').checked = !!s.enableQF;
-  if (s.rrType) $('rrType').value = s.rrType;
-  onGameTypeChange();
-
-  // restore teams
-  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null }));
-
-  // remap fixtures
-  const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
-  fixtures = (data.fixtures || []).map(f => ({
-    id: f.id, matchNum: f.matchNum, court: f.court, group: f.group,
-    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[] },
-    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[] }
-  }));
-
-  showGroupSummary();
-  renderFixtures();
-
-  // populate fixture scores
-  const scores = data.fixtureScores || {};
-  Object.keys(scores).forEach(k=>{
-    if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || '';
-    if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || '';
-  });
-
-  // restore knockout
-  if (data.ko && data.ko.knockout){
-    knockout = data.ko.knockout;
-    renderAppropriateKnockoutView();
-    const koScores = data.ko.scores || {};
-    Object.keys(koScores).forEach(id => { if ($(id)) $(id).value = koScores[id] || ''; });
+  // Only set default if user hasn't manually changed recently.
+  // We'll set default based on rules:
+  // - 1 group, 4-7 teams => 4 qualifiers
+  // - 1 group, >=8 teams => 8 qualifiers
+  // - >=2 groups => 2 qualifiers (default)
+  if (numGroups === 1) {
+    if (numTeams >= 8) qualSelect.value = '8';
+    else if (numTeams >= 4) qualSelect.value = '4';
+    else if (numTeams >= 2) qualSelect.value = '2';
+    else qualSelect.value = '1';
   } else {
-    knockout = {};
+    qualSelect.value = '2';
   }
+
+  // enable/disable QF checkbox info
+  const totalQuals = Number(qualSelect.value) * numGroups;
+  if (totalQuals >= 8) $('enableQF').disabled = false;
+  else { $('enableQF').disabled = true; $('enableQF').checked = false; }
 }
 
-/* ---------- Create tournament ---------- */
-function makeTimestampName(){
-  const d = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  const YYYY = d.getFullYear();
-  const MM = pad(d.getMonth()+1);
-  const DD = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mm = pad(d.getMinutes());
-  return `${YYYY}${MM}${DD}-${hh}:${mm}`;
+function onQualPerGroupManual(){
+  // If user manually sets qualifiers, we respect it and update QF enabled accordingly
+  const numGroups = clampInt($('numGroups').value, 1);
+  const totalQuals = Number($('qualPerGroup').value) * numGroups;
+  $('enableQF').disabled = !(totalQuals >= 8);
+  if ($('enableQF').disabled) $('enableQF').checked = false;
 }
 
-function createTournament(name){
-  const id = 't_' + Math.random().toString(36).slice(2,10);
-  const createdAt = new Date().toISOString();
-  const tournament = {
-    id, name: name || makeTimestampName(), createdAt, lastSaved: Date.now(),
-    snapshot: snapshotCurrentState()
-  };
-  const arr = readTournamentStore();
-  arr.unshift(tournament); // most recent first
-  writeTournamentStore(arr);
-  setActiveTournamentId(id);
-  renderLoadControl();
-  renderTournamentInfo();
-  return tournament;
-}
-
-/* update active tournament snapshot (save) */
-function saveActiveTournament(manual=false){
-  const id = getActiveTournamentId();
-  if (!id) {
-    if (manual) alert('No active tournament. Save teams first to create one.');
-    return false;
-  }
-  const arr = readTournamentStore();
-  const idx = arr.findIndex(t => t.id === id);
-  const snap = snapshotCurrentState();
-  const now = Date.now();
-  if (idx >= 0){
-    arr[idx].snapshot = snap;
-    arr[idx].lastSaved = now;
-  } else {
-    // create fallback
-    arr.unshift({ id, name: id, createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
-  }
-  writeTournamentStore(arr);
-  renderLoadControl();
-  renderTournamentInfo();
-  if (manual) alert('Tournament saved.');
-  return true;
-}
-
-/* autosave scheduling */
-function scheduleAutoSave(){
-  if (!getActiveTournamentId()) return; // only autosave when a tournament exists
-  if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; }, AUTOSAVE_DELAY);
-}
-
-/* ---------- Load control rendering ---------- */
-function renderLoadControl(){
-  const arr = readTournamentStore();
-  const loadBtn = $('loadBtn');
-  if (arr.length === 0) {
-    loadBtn.style.display = 'none';
-  } else {
-    loadBtn.style.display = 'inline-block';
-  }
-}
-
-/* show a compact inline load selector */
-function openLoadDialog(){
-  const arr = readTournamentStore();
-  if (!arr.length) return alert('No saved tournaments.');
-  // build small modal-like prompt (inline)
-  const overlay = document.createElement('div');
-  overlay.style.position = 'fixed';
-  overlay.style.left = 0; overlay.style.top = 0; overlay.style.right = 0; overlay.style.bottom = 0;
-  overlay.style.background = 'rgba(2,6,15,0.45)';
-  overlay.style.display = 'flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center'; overlay.style.zIndex=9999;
-
-  const box = document.createElement('div');
-  box.style.width='min(640px,95%)';
-  box.style.maxHeight='80%';
-  box.style.overflow='auto';
-  box.style.background='var(--card-bg)';
-  box.style.borderRadius='10px';
-  box.style.padding='12px';
-  box.style.boxShadow='0 10px 40px rgba(2,6,23,0.6)';
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-weight:800;color:#eaf4ff">Load Tournament</div>
-      <button id="closeLoadDialog" class="btn ghost small">Close</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px;" id="loadList"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button id="loadCancel" class="btn ghost small">Cancel</button></div>`;
-
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-
-  const loadList = box.querySelector('#loadList');
-  arr.forEach(t=>{
-    const div = document.createElement('div');
-    div.style.display='flex';
-    div.style.justifyContent='space-between';
-    div.style.alignItems='center';
-    div.style.padding='8px';
-    div.style.borderRadius='8px';
-    div.style.background='rgba(255,255,255,0.02)';
-    const created = new Date(t.createdAt).toLocaleString();
-    div.innerHTML = `<div style="display:flex;flex-direction:column;">
-        <div style="font-weight:700">${t.name}</div>
-        <div class="muted" style="font-size:12px;">Saved: ${new Date(t.lastSaved||t.createdAt).toLocaleString()}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn small" data-id="${t.id}">Load</button>
-        <button class="btn ghost small" data-id="del_${t.id}">Delete</button>
-      </div>`;
-    loadList.appendChild(div);
-  });
-
-  // wire buttons
-  box.querySelectorAll('button[data-id]').forEach(btn=>{
-    btn.onclick = (e)=>{
-      const key = btn.getAttribute('data-id');
-      if (key.startsWith('del_')){
-        const id = key.slice(4);
-        if (!confirm('Delete this saved tournament? This cannot be undone.')) return;
-        let store = readTournamentStore();
-        store = store.filter(x => x.id !== id);
-        writeTournamentStore(store);
-        document.body.removeChild(overlay);
-        renderLoadControl();
-        alert('Deleted.');
-        return;
-      }
-      const id = key;
-      const store = readTournamentStore();
-      const t = store.find(x => x.id === id);
-      if (!t) return alert('Tournament not found.');
-      // prompt to confirm
-      if (!confirm(`Load tournament "${t.name}"? This will replace current unsaved data.`)) return;
-      // set active and restore
-      setActiveTournamentId(id);
-      restoreSnapshot(t.snapshot);
-      renderTournamentInfo();
-      document.body.removeChild(overlay);
-      alert(`Loaded tournament "${t.name}".`);
-    };
-  });
-
-  box.querySelector('#closeLoadDialog').onclick = ()=>{ document.body.removeChild(overlay); };
-  box.querySelector('#loadCancel').onclick = ()=>{ document.body.removeChild(overlay); };
-}
-
-/* ---------- Tournament info UI ---------- */
-function renderTournamentInfo(){
-  const tinfo = $('tournamentInfo');
-  const active = getActiveTournament();
-  if (!active) { tinfo.style.display = 'none'; return; }
-  tinfo.style.display = 'flex';
-  $('tourneyName').value = active.name || active.id;
-  $('tourneyMeta').textContent = `Created: ${new Date(active.createdAt).toLocaleString()} • Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`;
-}
-
-/* rename tournament */
-function renameActiveTournament(){
-  const id = getActiveTournamentId();
-  if (!id) return alert('No active tournament.');
-  const arr = readTournamentStore();
-  const idx = arr.findIndex(x => x.id === id);
-  if (idx < 0) return alert('Active tournament not found.');
-  const newName = $('tourneyName').value.trim();
-  if (!newName) return alert('Name cannot be empty.');
-  arr[idx].name = newName;
-  arr[idx].lastSaved = Date.now();
-  writeTournamentStore(arr);
-  renderLoadControl();
-  renderTournamentInfo();
-  alert('Tournament renamed.');
-}
-
-/* ---------- Slot-like logic integrated with app flow ---------- */
-/* When the user first saves teams (saveTeams), create tournament if none */
-function ensureTournamentExistsOnFirstSave(){
-  if (getActiveTournamentId()) return;
-  const defaultName = makeTimestampName();
-  const created = createTournament(defaultName);
-  // Update with snapshot now (teams exist)
-  saveActiveTournament(true);
-  alert(`Tournament created: ${created.name}`);
-}
-
-/* ---------- Entry & Teams (modified to call tournament creation on first save) ---------- */
+/* ---------- Entry flow ---------- */
 function onGameTypeChange(){
   const type = $('gameType').value;
   $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
@@ -594,16 +324,7 @@ function startEntry(){
   updateBanner('Entry');
 
   // bind dynamic buttons
-  $('saveTeamsBtn').onclick = () => {
-    saveTeams();
-    // After saving teams, create tournament if none exists.
-    if (!getActiveTournamentId()){
-      ensureTournamentExistsOnFirstSave();
-    } else {
-      // if active tournament exists, update its snapshot
-      saveActiveTournament(true);
-    }
-  };
+  $('saveTeamsBtn').onclick = saveTeams;
   $('cancelEntryBtn').onclick = cancelEntry;
 }
 
@@ -624,36 +345,13 @@ function saveTeams(){
   assignGroups();
 }
 
-/* ---------- Groups & summary ---------- */
-function updateQualifierDefaults(){
-  const numTeams = clampInt($('numTeams').value, 0);
-  const numGroups = clampInt($('numGroups').value, 1);
-  const qualSelect = $('qualPerGroup');
-
-  if (numGroups === 1) {
-    if (numTeams >= 8) qualSelect.value = '8';
-    else if (numTeams >= 4) qualSelect.value = '4';
-    else if (numTeams >= 2) qualSelect.value = '2';
-    else qualSelect.value = '1';
-  } else {
-    qualSelect.value = '2';
-  }
-
-  const totalQuals = Number(qualSelect.value) * numGroups;
-  if (totalQuals >= 8) $('enableQF').disabled = false;
-  else { $('enableQF').disabled = true; $('enableQF').checked = false; }
-}
-function onQualPerGroupManual(){
-  const numGroups = clampInt($('numGroups').value, 1);
-  const totalQuals = Number($('qualPerGroup').value) * numGroups;
-  $('enableQF').disabled = !(totalQuals >= 8);
-  if ($('enableQF').disabled) $('enableQF').checked = false;
-}
+/* ---------- Groups ---------- */
 function assignGroups(){
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
   teams.forEach((t, idx) => t.group = (idx % numGroups) + 1);
   showGroupSummary();
 }
+
 function showGroupSummary(){
   if (!teams || teams.length === 0) return alert('No participants defined.');
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
@@ -743,44 +441,26 @@ function renderFixtures(){
     grid.appendChild(card);
   });
 
-  // wire up input listeners for autosave + immediate scheduling
-  fixtures.forEach(m=>{
-    const s1 = $(`s1-${m.id}`), s2 = $(`s2-${m.id}`);
-    if (s1) { s1.addEventListener('input', scheduleAutoSave); }
-    if (s2) { s2.addEventListener('input', scheduleAutoSave); }
-  });
-
-  // load saved scores if active tournament has them
-  const active = getActiveTournament();
-  if (active && active.snapshot && active.snapshot.fixtureScores){
-    const scores = active.snapshot.fixtureScores || {};
-    Object.keys(scores).forEach(k=>{
-      if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || '';
-      if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || '';
-    });
-  }
-
   $('fixturesCard').style.display = 'block';
   $('rankingsCard').style.display = 'none';
   updateBanner('Round Robin — Enter Scores');
 }
 
-/* ---------- Save Scores (manual) ---------- */
-$('manualSaveBtn') && $('manualSaveBtn').addEventListener('click', ()=>{ if (saveActiveTournament(true)) {} });
-
-/* ---------- Rankings ---------- */
+/* ---------- Rankings (Round-Robin only) ---------- */
 function generateRoundRobinRankings(){
   if (!fixtures || fixtures.length === 0) return alert('No fixtures. Generate fixtures first.');
 
+  // initialize stats
   const stats = {};
   teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0 });
 
+  // iterate fixtures; only count matches where both scores entered and not knockout
   for (const m of fixtures){
     const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
     if (!s1El || !s2El) continue;
     const s1 = s1El.value === '' ? NaN : Number(s1El.value);
     const s2 = s2El.value === '' ? NaN : Number(s2El.value);
-    if (Number.isNaN(s1) && Number.isNaN(s2)) continue;
+    if (Number.isNaN(s1) && Number.isNaN(s2)) continue; // not played
     if (Number.isNaN(s1) || Number.isNaN(s2)) return alert(`Match ${m.matchNum}: both scores required.`);
     if (s1 === s2) return alert(`Match ${m.matchNum}: tie detected (${s1}). Ties are not allowed.`);
 
@@ -792,11 +472,20 @@ function generateRoundRobinRankings(){
     if (stats[loserId])  { stats[loserId].ptsWon += loserScore; stats[loserId].ptsLost += winnerScore; }
   }
 
+  // group mapping based on rrType
   const rrType = $('rrType').value;
   const groupsMap = {};
-  if (rrType === 'across') groupsMap['all'] = Object.values(stats);
-  else Object.values(stats).forEach(s => { const g = s.group || 1; if (!groupsMap[g]) groupsMap[g]=[]; groupsMap[g].push(s); });
+  if (rrType === 'across') {
+    groupsMap['all'] = Object.values(stats);
+  } else {
+    Object.values(stats).forEach(s => {
+      const g = s.group || 1;
+      if (!groupsMap[g]) groupsMap[g] = [];
+      groupsMap[g].push(s);
+    });
+  }
 
+  // compute diff and sort
   rankings = {};
   Object.keys(groupsMap).sort((a,b)=> (a==='all'? -1 : Number(a)-Number(b)) ).forEach(k=>{
     const arr = groupsMap[k];
@@ -808,9 +497,6 @@ function generateRoundRobinRankings(){
     arr.forEach((s,i)=> s.rank = i+1);
     rankings[k] = arr;
   });
-
-  // after computing rankings, save to active tournament automatically
-  saveActiveTournament(false);
 
   renderRankings();
   updateBanner('Round-Robin Rankings');
@@ -833,8 +519,9 @@ function renderRankings(){
   $('rankingsCard').style.display = 'block';
 }
 
-/* ---------- Qualifiers & Knockouts ---------- */
+/* ---------- Determine qualifiers ---------- */
 function getQualifiedList(){
+  // qualifiers per group times num groups, but we must pick top N from each group or overall depending on rrType
   const per = Math.max(1, Number($('qualPerGroup').value) || 1);
   const rrType = $('rrType').value;
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
@@ -854,27 +541,36 @@ function getQualifiedList(){
   return qualified;
 }
 
+/* ---------- PROCEED to Knockouts logic (Option A implemented) ---------- */
 function proceedToKnockouts(){
   if (!rankings || Object.keys(rankings).length === 0) return alert('Generate Round-Robin Rankings first.');
+
   const qualified = getQualifiedList();
   if (qualified.length < 2) return alert('Not enough qualifiers.');
+
+  // Determine flow based on total qualifiers and QF setting
   const totalQuals = qualified.length;
   const qfEnabled = $('enableQF').checked;
 
   if (totalQuals >= 8 && qfEnabled){
+    // Quarterfinals using top 8
     prepareQuarterfinals(qualified);
   } else if (totalQuals >= 4){
+    // Direct to Semifinals (Option A)
     prepareSemifinalsDirect(qualified);
   } else if (totalQuals === 2){
+    // Direct Final (rare) — we will treat as semifinal-byes: directly create final
     prepareDirectFinal(qualified);
   } else {
-    return alert('Insufficient qualifiers for knockouts (need at least 4 for semis or 8 for quarters).');
+    return alert('Insufficient qualifiers for knockouts (need at least 4 to run semifinals or 8 for quarterfinals).');
   }
 }
 
-/* Quarterfinals */
+/* ---------- Quarterfinals (only when totalQuals >=8 and QF enabled) ---------- */
 function prepareQuarterfinals(qualifiedList){
+  // use top 8
   const prepared = qualifiedList.slice(0,8);
+  // seed: 1v8,4v5,2v7,3v6 mapping to QF1..QF4
   const top8 = prepared;
   const qfPairs = [
     { id:'QF1', a: top8[0], b: top8[7] },
@@ -886,6 +582,7 @@ function prepareQuarterfinals(qualifiedList){
   renderQuarterfinals();
   updateBanner('Quarterfinals');
 }
+
 function renderQuarterfinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   knockout.qf.forEach((m,idx)=>{
@@ -907,11 +604,10 @@ function renderQuarterfinals(){
   row.appendChild(btn);
   inner.appendChild(row);
 
-  // attach autosave listeners
-  document.querySelectorAll('#knockoutsInner input.score-input').forEach(inp => inp.addEventListener('input', scheduleAutoSave));
-  // show manual save in KO area already wired
   $('knockoutsCard').style.display = 'block';
 }
+
+/* process QF winners, advance to SF */
 function processQuarterfinals(){
   if (!knockout || !knockout.qf) return alert('Quarterfinals not configured.');
   const winners = [];
@@ -925,6 +621,7 @@ function processQuarterfinals(){
     winners.push( v1 > v2 ? m.a : m.b );
   }
 
+  // SF1: winner(QF1) vs winner(QF4), SF2: winner(QF2) vs winner(QF3)
   knockout.sf1 = { id:'SF1', name:'Semifinal 1', a: winners[0], b: winners[3] };
   knockout.sf2 = { id:'SF2', name:'Semifinal 2', a: winners[1], b: winners[2] };
   knockout.qf = null;
@@ -932,8 +629,10 @@ function processQuarterfinals(){
   updateBanner('Semifinals');
 }
 
-/* Semifinals direct (Option A) */
+/* ---------- Semifinals direct when total qualifiers = 4 (Option A) ---------- */
 function prepareSemifinalsDirect(qualifiedList){
+  // qualifiedList expected in selection order (group-wise/top lists)
+  // If 4 or more qualifiers present, take top 4 and seed SF: 1v4, 2v3
   const top = qualifiedList.slice(0,4);
   knockout = {
     qf: null,
@@ -945,6 +644,7 @@ function prepareSemifinalsDirect(qualifiedList){
   renderSemifinals();
   updateBanner('Semifinals');
 }
+
 function renderSemifinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   [knockout.sf1, knockout.sf2].forEach(match=>{
@@ -966,10 +666,10 @@ function renderSemifinals(){
   row.appendChild(btn);
   inner.appendChild(row);
 
-  // autosave on KO inputs
-  document.querySelectorAll('#knockoutsInner input.score-input').forEach(inp => inp.addEventListener('input', scheduleAutoSave));
   $('knockoutsCard').style.display = 'block';
 }
+
+/* process semis -> finalists and 3rd place matches */
 function processSemifinals(){
   const matches = [knockout.sf1, knockout.sf2];
   const winners = [], losers = [];
@@ -989,15 +689,16 @@ function processSemifinals(){
   updateBanner('Finals & 3rd Place');
 }
 
-/* Direct final for 2 qualifiers */
+/* ---------- Direct final (2 qualifiers) ---------- */
 function prepareDirectFinal(qualified){
+  // qualified is length 2
   const a = qualified[0], b = qualified[1];
   knockout = { qf:null, sf1:null, sf2:null, final: { id:'FINAL', name:'Final', a, b }, third: null };
   renderFinals();
   updateBanner('Final');
 }
 
-/* Render Final & 3rd */
+/* ---------- Render Final & 3rd ---------- */
 function renderFinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
 
@@ -1035,14 +736,12 @@ function renderFinals(){
   doneRow.appendChild(doneBtn);
   inner.appendChild(doneRow);
 
-  // attach autosave listeners
-  document.querySelectorAll('#knockoutsInner input.score-input').forEach(inp => inp.addEventListener('input', scheduleAutoSave));
-
   $('knockoutsCard').style.display = 'block';
 }
 
-/* finalize knockouts */
+/* ---------- Finalize knockouts (validate & show winners) ---------- */
 function finalizeKnockouts(){
+  // validate final
   if (knockout.final){
     const f1 = $('FINAL-s1'), f2 = $('FINAL-s2');
     if (!f1 || !f2) return alert('Enter final scores.');
@@ -1052,6 +751,7 @@ function finalizeKnockouts(){
     if (v1 === v2) return alert('Final: tie not allowed.');
     const finalWinner = v1 > v2 ? knockout.final.a : knockout.final.b;
     const finalRunner  = v1 > v2 ? knockout.final.b : knockout.final.a;
+    // third place (optional)
     let thirdWinner = null, thirdRunner = null;
     if (knockout.third){
       const t1 = $('THIRD-s1'), t2 = $('THIRD-s2');
@@ -1067,14 +767,12 @@ function finalizeKnockouts(){
     if (thirdWinner) msg += `\n3rd Place: ${thirdWinner.name}\n4th Place: ${thirdRunner.name}`;
     alert(msg);
     updateBanner('Tournament Complete');
-    // final save
-    saveActiveTournament(false);
   } else {
     alert('No final configured.');
   }
 }
 
-/* ---------- Export rankings CSV ---------- */
+/* ---------- Export CSV for rankings ---------- */
 function exportRankingsCSV(){
   if (!rankings || Object.keys(rankings).length === 0) return alert('No rankings to export.');
   const rows=[['Group','Rank','ID','Name','Players','MatchesWon','PtsWon','PtsLost','Diff']];
@@ -1095,27 +793,24 @@ function exportRankingsCSV(){
 function resetAll(){
   if (!confirm('Reset all tournament data and UI?')) return;
   teams = []; fixtures = []; rankings = {}; knockout = {};
+  // UI reset
   $('entryInner').innerHTML=''; $('entryCard').style.display='none';
   $('summaryInner').innerHTML=''; $('summaryCard').style.display='none';
   $('fixturesGrid').innerHTML=''; $('fixturesCard').style.display='none';
   $('rankingsInner').innerHTML=''; $('rankingsCard').style.display='none';
   $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none';
-  $('gameType').value='doubles'; $('numTeams').value=6; $('numCourts').value=2; $('numGroups').value=1;
-  updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='within';
-  setActiveTournamentId(null);
-  renderTournamentInfo();
+  // reset form values to defaults
+  $('gameType').value='doubles';
+  $('numTeams').value=6;
+  $('numCourts').value=2;
+  $('numGroups').value=1;
+  updateQualifierDefaults();
+  $('enableQF').checked=false;
+  $('rrType').value='within';
   updateBanner('Round Robin');
 }
 
-/* ---------- Render or load knockout view if snapshot contains it ---------- */
-function renderAppropriateKnockoutView(){
-  if (knockout.qf) renderQuarterfinals();
-  else if (knockout.sf1 && knockout.sf2) renderSemifinals();
-  else if (knockout.final) renderFinals();
-  else $('knockoutsCard').style.display = 'none';
-}
-
-/* ---------- UI Bindings ---------- */
+/* ---------- Bind UI ---------- */
 function bindUI(){
   $('startEntryBtn').onclick = startEntry;
   $('resetBtn').onclick = resetAll;
@@ -1125,17 +820,10 @@ function bindUI(){
   $('proceedKO').onclick = proceedToKnockouts;
   $('exportCSVBtn').onclick = exportRankingsCSV;
   $('printBtn').onclick = ()=> window.print();
+  // dynamic qualifier defaulting
   $('numTeams').addEventListener('input', updateQualifierDefaults);
   $('numGroups').addEventListener('input', updateQualifierDefaults);
   $('qualPerGroup').addEventListener('change', onQualPerGroupManual);
-
-  // load control
-  $('loadBtn').onclick = openLoadDialog;
-  // manual save for fixtures and knockout
-  $('manualSaveBtn') && ($('manualSaveBtn').onclick = ()=> saveActiveTournament(true));
-  $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = ()=> saveActiveTournament(true));
-  // rename tournament
-  $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
 }
 
 /* ---------- Initial setup ---------- */
@@ -1143,9 +831,8 @@ function bindUI(){
   onGameTypeChange();
   updateQualifierDefaults();
   bindUI();
-  renderLoadControl();
-  renderTournamentInfo();
 })();
 </script>
 </body>
 </html>
+
