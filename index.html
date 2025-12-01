@@ -384,7 +384,7 @@ function snapshotCurrentState(){
     numCourts: Number($('numCourts').value) || 1,
     numGroups: Number($('numGroups').value) || 1,
     qualPerGroup: Number($('qualPerGroup').value) || 1,
-    enableQF: !!$('enableQF').checked,
+    enableQF: !!$('enableQF')?.checked,
     rrType: $('rrType').value,
     courtAlloc: $('courtAlloc').value,
     clubs: clubs.slice()
@@ -414,7 +414,7 @@ function restoreSnapshot(data){
   if (s.numCourts) $('numCourts').value = s.numCourts;
   if (s.numGroups) $('numGroups').value = s.numGroups;
   if (s.qualPerGroup) $('qualPerGroup').value = s.qualPerGroup;
-  if (typeof s.enableQF !== 'undefined') $('enableQF').checked = !!s.enableQF;
+  if (typeof s.enableQF !== 'undefined' && $('enableQF')) $('enableQF').checked = !!s.enableQF;
   if (s.rrType) $('rrType').value = s.rrType;
   if (s.courtAlloc) $('courtAlloc').value = s.courtAlloc;
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
@@ -620,6 +620,7 @@ function onGameTypeChange(){
   $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
 }
 
+/* ---------- Robust RR-type UI toggling ---------- */
 function onRRTypeChange(){
   const rr = $('rrType').value;
   const manageBtn = $('manageClubsBtn');
@@ -879,14 +880,14 @@ function updateQualifierDefaults(){
     qualSelect.value = '2';
   }
   const totalQuals = Number(qualSelect.value) * numGroups;
-  if (totalQuals >= 8) $('enableQF').disabled = false;
-  else { $('enableQF').disabled = true; $('enableQF').checked = false; }
+  if (totalQuals >= 8) $('enableQF') && ($('enableQF').disabled = false);
+  else { $('enableQF') && ($('enableQF').disabled = true); if ($('enableQF')) $('enableQF').checked = false; }
 }
 function onQualPerGroupManual(){
   const numGroups = clampInt($('numGroups').value, 1);
   const totalQuals = Number($('qualPerGroup').value) * numGroups;
-  $('enableQF').disabled = !(totalQuals >= 8);
-  if ($('enableQF').disabled) $('enableQF').checked = false;
+  $('enableQF') && ($('enableQF').disabled = !(totalQuals >= 8));
+  if ($('enableQF') && $('enableQF').disabled) $('enableQF').checked = false;
 }
 function assignGroups(){
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
@@ -1297,7 +1298,7 @@ function proceedToKnockouts(){
   const qualified = getQualifiedList();
   if (qualified.length < 2) return showToast('Not enough qualifiers.','warn');
   const totalQuals = qualified.length;
-  const qfEnabled = $('enableQF').checked;
+  const qfEnabled = $('enableQF') && $('enableQF').checked;
   if (totalQuals >= 8 && qfEnabled) prepareQuarterfinals(qualified);
   else if (totalQuals >= 4) prepareSemifinalsDirect(qualified);
   else if (totalQuals === 2) prepareDirectFinal(qualified);
@@ -1676,7 +1677,7 @@ function resetAll(){
   $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none';
   $('gameType').value='doubles'; $('numTeams').value=8; $('numCourts').value=2; $('numGroups').value=2;
   $('courtAlloc').value='roundwise';
-  updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='within';
+  updateQualifierDefaults(); if ($('enableQF')) $('enableQF').checked=false; $('rrType').value='within';
   onRRTypeChange();
   setActiveTournamentId(null);
   renderTournamentInfo();
@@ -1693,7 +1694,7 @@ function renderAppropriateKnockoutView(){
   else $('knockoutsCard').style.display = 'none';
 }
 
-/* ---------- Bind UI ---------- */
+/* ---------- Bind UI (robust attachment) ---------- */
 function bindUI(){
   $('startEntryBtn').onclick = startEntry;
   $('resetBtn').onclick = resetAll;
@@ -1714,7 +1715,25 @@ function bindUI(){
   $('manualSaveBtn') && ($('manualSaveBtn').onclick = manualSaveFromUI);
   $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = manualSaveFromUI);
   $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
-  $('manageClubsBtn') && ($('manageClubsBtn').onclick = openClubDialog);
+
+  // Ensure Manage Clubs button click always handled via addEventListener (safer)
+  const manageBtn = $('manageClubsBtn');
+  if (manageBtn) {
+    manageBtn.setAttribute('type','button');
+    try {
+      // replace with a fresh node to avoid duplicate handlers in some environments
+      const fresh = manageBtn.cloneNode(true);
+      manageBtn.parentNode.replaceChild(fresh, manageBtn);
+      fresh.addEventListener('click', (ev) => {
+        console.log('Manage Clubs clicked');
+        showToast('Opening Manage Clubs…','success');
+        openClubDialog();
+      });
+    } catch (e){
+      // fallback: attach to existing
+      manageBtn.addEventListener('click', (ev) => { console.log('Manage Clubs clicked (fallback)'); showToast('Opening Manage Clubs…','success'); openClubDialog(); });
+    }
+  }
 
   const backBtn = $('backToSummaryBtn');
   if (backBtn) backBtn.onclick = () => { $('fixturesCard').style.display='none'; $('summaryCard').style.display='block'; updateBanner('Group Summary'); };
