@@ -60,6 +60,12 @@
   @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
   @media (max-width:420px){ .setup-row{ grid-template-columns: 1fr; } }
 
+  .manage-clubs-row { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+  @media (max-width:600px) {
+    .manage-clubs-row { justify-content:flex-start; }
+    .manage-clubs-row .btn { display:block; width:100%; max-width:100%; text-align:left; }
+  }
+
   .action-row { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:8px; }
   @media (max-width:420px){ .action-row{ flex-direction:column; } .action-row .btn{ width:100%; } }
 
@@ -68,7 +74,8 @@
 
   .match-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:8px; padding:10px; border:1px solid rgba(255,255,255,0.04); color:var(--card-text); }
   .match-title{ font-weight:700; color:#eaf4ff; margin-bottom:6px; font-size:13px; }
-  .team-label { font-size:13px; color:#eaf4ff; font-weight:600; }
+  .team-label { font-size:13px; color:#eaf4ff; font-weight:700; display:flex; flex-direction:column; }
+  .team-players { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.1; }
 
   .score-input{ width:72px; padding:7px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:60px; }
 
@@ -81,6 +88,10 @@
     .card{ padding:8px; border-radius:6px; }
     label{font-size:11px;}
     .banner{height:28px;font-size:12px;}
+    .team-label { font-size:12px; }
+    .team-players { font-size:11px; }
+    .match-title { font-size:12px; }
+    .score-input { width:60px; }
   }
 
   /* Toast styles */
@@ -199,8 +210,8 @@
             </div>
           </div>
 
-          <!-- Manage clubs control (hidden unless rrType === 'club') -->
-          <div style="margin-top:8px; display:flex;justify-content:flex-end; gap:8px;">
+          <!-- Manage clubs control (moved into RR-Type column area for better wrapping) -->
+          <div class="manage-clubs-row">
             <button id="manageClubsBtn" class="btn small ghost" style="display:none;">Manage Clubs</button>
           </div>
 
@@ -959,15 +970,17 @@ function renderFixtures(){
   fixtures.forEach(m=>{
     const card = document.createElement('div'); card.className='match-card';
     const groupLabel = (m.group === 'all' ? 'All' : (m.group === 'club' ? 'Across Clubs' : m.group));
+    const p1 = (m.t1 && m.t1.players && m.t1.players.length) ? escapeHtml((m.t1.players||[]).join(' & ')) : '';
+    const p2 = (m.t2 && m.t2.players && m.t2.players.length) ? escapeHtml((m.t2.players||[]).join(' & ')) : '';
     card.innerHTML = `
       <div class="match-title">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${escapeHtml(m.t1.name)}${m.t1.club ? ' • ' + escapeHtml(m.t1.club) : ''}</div>
+        <div class="team-label">${escapeHtml(m.t1.name)}${m.t1.club ? ' • ' + escapeHtml(m.t1.club) : ''}<div class="team-players">${p1}</div></div>
         <div style="margin-left:12px"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
       <div style="height:8px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${escapeHtml(m.t2.name)}${m.t2.club ? ' • ' + escapeHtml(m.t2.club) : ''}</div>
+        <div class="team-label">${escapeHtml(m.t2.name)}${m.t2.club ? ' • ' + escapeHtml(m.t2.club) : ''}<div class="team-players">${p2}</div></div>
         <div style="margin-left:12px"><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
     `;
@@ -1114,12 +1127,20 @@ function renderQuarterfinals(){
     const matchCard = document.createElement('div');
     matchCard.className = 'match-card';
     matchCard.style.padding = '10px';
-    const aLabel = (m.a && m.a.isBye) ? 'BYE' : (m.a && m.a.name) || 'Unknown';
-    const bLabel = (m.b && m.b.isBye) ? 'BYE' : (m.b && m.b.name) || 'Unknown';
+    const aName = (m.a && m.a.name) || 'Unknown';
+    const bName = (m.b && m.b.name) || 'Unknown';
+    const aPlayers = (m.a && m.a.players && m.a.players.length) ? escapeHtml((m.a.players||[]).join(' & ')) : '';
+    const bPlayers = (m.b && m.b.players && m.b.players.length) ? escapeHtml((m.b.players||[]).join(' & ')) : '';
     matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
+        <input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score">
+      </div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(bName)}<div class="team-players">${bPlayers}</div></div>
+        <input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score">
+      </div>`;
     div.appendChild(matchCard);
     inner.appendChild(div);
   });
@@ -1171,12 +1192,20 @@ function renderSemifinals(){
     const matchCard = document.createElement('div');
     matchCard.className = 'match-card';
     matchCard.style.padding = '10px';
-    const aLabel = (match.a && match.a.isBye) ? 'BYE' : (match.a && match.a.name) || 'Unknown';
-    const bLabel = (match.b && match.b.isBye) ? 'BYE' : (match.b && match.b.name) || 'Unknown';
+    const aName = (match.a && match.a.name) || 'Unknown';
+    const bName = (match.b && match.b.name) || 'Unknown';
+    const aPlayers = (match.a && match.a.players && match.a.players.length) ? escapeHtml((match.a.players||[]).join(' & ')) : '';
+    const bPlayers = (match.b && match.b.players && match.b.players.length) ? escapeHtml((match.b.players||[]).join(' & ')) : '';
     matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${escapeHtml(match.name)}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
+        <input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score">
+      </div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(bName)}<div class="team-players">${bPlayers}</div></div>
+        <input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score">
+      </div>`;
     div.appendChild(matchCard);
     inner.appendChild(div);
   });
@@ -1222,12 +1251,20 @@ function renderFinals(){
     const f = knockout.final;
     const divF = document.createElement('div'); divF.style.marginBottom='8px';
     const matchCardF = document.createElement('div'); matchCardF.className='match-card'; matchCardF.style.padding='10px';
-    const aLabel = (f.a && f.a.isBye) ? 'BYE' : (f.a && f.a.name) || 'Unknown';
-    const bLabel = (f.b && f.b.isBye) ? 'BYE' : (f.b && f.b.name) || 'Unknown';
+    const aName = (f.a && f.a.name) || 'Unknown';
+    const bName = (f.b && f.b.name) || 'Unknown';
+    const aPlayers = (f.a && f.a.players && f.a.players.length) ? escapeHtml((f.a.players||[]).join(' & ')) : '';
+    const bPlayers = (f.b && f.b.players && f.b.players.length) ? escapeHtml((f.b.players||[]).join(' & ')) : '';
     matchCardF.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Final</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="FINAL-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
+        <input id="FINAL-s1" class="score-input" type="number" min="0" placeholder="Score">
+      </div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(bName)}<div class="team-players">${bPlayers}</div></div>
+        <input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score">
+      </div>`;
     divF.appendChild(matchCardF);
     inner.appendChild(divF);
   }
@@ -1236,12 +1273,20 @@ function renderFinals(){
     const t = knockout.third;
     const divT = document.createElement('div'); divT.style.marginBottom='8px';
     const matchCardT = document.createElement('div'); matchCardT.className='match-card'; matchCardT.style.padding='10px';
-    const aLabel = (t.a && t.a.isBye) ? 'BYE' : (t.a && t.a.name) || 'Unknown';
-    const bLabel = (t.b && t.b.isBye) ? 'BYE' : (t.b && t.b.name) || 'Unknown';
+    const aName = (t.a && t.a.name) || 'Unknown';
+    const bName = (t.b && t.b.name) || 'Unknown';
+    const aPlayers = (t.a && t.a.players && t.a.players.length) ? escapeHtml((t.a.players||[]).join(' & ')) : '';
+    const bPlayers = (t.b && t.b.players && t.b.players.length) ? escapeHtml((t.b.players||[]).join(' & ')) : '';
     matchCardT.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">3rd Place</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="THIRD-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
+        <input id="THIRD-s1" class="score-input" type="number" min="0" placeholder="Score">
+      </div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="team-label">${escapeHtml(bName)}<div class="team-players">${bPlayers}</div></div>
+        <input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score">
+      </div>`;
     divT.appendChild(matchCardT);
     inner.appendChild(divT);
   }
@@ -1328,7 +1373,7 @@ function exportSummaryPDF(){
       rankHtml += `<h4>${k==='all' ? 'Overall' : 'Group ' + k}</h4>`;
       rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
       (rankings[k]||[]).forEach(r=>{
-        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.club||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
+        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}<div style="font-size:11px;color:#667085">${escapeHtml((r.players||[]).join(' & '))}</div></td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.club||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
       });
       rankHtml += '</tbody></table>';
     });
@@ -1339,7 +1384,7 @@ function exportSummaryPDF(){
   else {
     if (knockout.qf) {
       koHtml += '<h4>Quarterfinals</h4><ul>';
-      knockout.qf.forEach(q=> koHtml += `<li>${escapeHtml(q.a.name)} vs ${escapeHtml(q.b.name)}</li>`);
+      knockout.qf.forEach(q=> koHtml += `<li>${escapeHtml(q.a.name)} (${escapeHtml((q.a.players||[]).join(' & '))}) vs ${escapeHtml(q.b.name)} (${escapeHtml((q.b.players||[]).join(' & '))})</li>`);
       koHtml += '</ul>';
     }
     if (knockout.sf1 && knockout.sf2) {
