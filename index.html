@@ -795,80 +795,7 @@ function updateClubDropdowns(){
 }
 
 /* ---------- Entry UI ---------- */
-function startEntry(){
-  const n = clampInt($('numTeams').value, 0);
-  if (n < 2) { showToast('Please enter at least 2 participants.','warn'); return; }
-  const type = $('gameType').value;
-  const rrType = $('rrType').value;
-  const isClubRR = rrType === 'club';
-  const duprEnabled = !!$('enableDUPR').checked;
-
-  if (isClubRR && (!clubs || clubs.length === 0)){
-    showToast('Please add clubs first (Manage Clubs).','warn');
-    openClubDialog();
-    return;
-  }
-
-  let html = '';
-  for (let i=1;i<=n;i++){
-    html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
-    if (type === 'singles'){
-      html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label>
-               <div style="display:flex;gap:8px;align-items:center;">
-                 <input id="pA_${i}" type="text" placeholder="Player name" style="flex:2">
-                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id" style="flex:1;min-width:100px">` : ''}
-               </div>`;
-      if (isClubRR){
-        html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
-            <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
-            <button class="inline-add" type="button" onclick="addClubInline(${i})">+ Add</button>
-          </div>`;
-      }
-    } else {
-      html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <div style="flex:1;display:flex;gap:6px;align-items:center;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="dA_${i}" type="text" placeholder="DUPR id" style="${duprEnabled ? 'min-width:110px' : 'display:none'}"></div>
-          <div style="flex:1;display:flex;gap:6px;align-items:center;"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"><input id="dB_${i}" type="text" placeholder="DUPR id" style="${duprEnabled ? 'min-width:110px' : 'display:none'}"></div>
-        </div>`;
-      if (isClubRR){
-        html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
-            <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
-            <button class="inline-add" type="button" onclick="addClubInline(${i})">+ Add</button>
-          </div>`;
-      }
-    }
-    html += `</div>`;
-  }
-  html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" id="saveTeamsBtn">Save</button><button class="btn ghost" id="cancelEntryBtn">Cancel</button></div>`;
-  $('entryInner').innerHTML = html;
-  updateClubDropdowns();
-
-  // Show/hide DUPR fields properly if enabled
-  if (!$('enableDUPR').checked) {
-    // hide inputs if present
-    for (let i=1;i<=n;i++){
-      const dA = $(`dA_${i}`), dB = $(`dB_${i}`);
-      if (dA) dA.style.display = 'none';
-      if (dB) dB.style.display = 'none';
-    }
-  }
-
-  $('entryCard').style.display = 'block';
-  $('fixturesCard').style.display = 'none';
-  $('rankingsCard').style.display = 'none';
-  updateBanner('Entry');
-
-  $('saveTeamsBtn').onclick = () => {
-    saveTeams();
-    if (!getActiveTournamentId()){
-      ensureTournamentExistsOnFirstSave();
-    } else {
-      saveActiveTournament(true);
-    }
-  };
-  $('cancelEntryBtn').onclick = cancelEntry;
-}
-
+When checked, entry will ask for DUPR id(s) and they’ll show in brackets next to player names everywhere.
 function cancelEntry(){ $('entryInner').innerHTML=''; $('entryCard').style.display='none'; updateBanner('Round Robin'); }
 
 function addClubInline(index){
@@ -1828,5 +1755,6 @@ function escapeHtml(str){
 </script>
 </body>
 </html>
+
 
 
