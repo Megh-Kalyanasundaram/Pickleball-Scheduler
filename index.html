@@ -794,7 +794,7 @@ function updateClubDropdowns(){
   });
 }
 
-/* ---------- START ENTRY (Option B placeholders) ---------- */
+/* ---------- START ENTRY (fixed layout for DUPR + names) ---------- */
 function startEntry(){
   const n = clampInt($('numTeams').value, 0);
   if (n < 2) { showToast('Please enter at least 2 participants.','warn'); return; }
@@ -815,8 +815,8 @@ function startEntry(){
     if (type === 'singles'){
       html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label>
                <div style="display:flex;gap:8px;align-items:center;">
-                 <input id="pA_${i}" type="text" placeholder="Player name" style="flex:2">
-                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="flex:1;min-width:100px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="display:none">`}
+                 <input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">
+                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="flex:0 0 130px;min-width:90px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="display:none">`}
                </div>`;
       if (isClubRR){
         html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
@@ -825,15 +825,16 @@ function startEntry(){
           </div>`;
       }
     } else {
+      // Doubles: ensure name and DUPR inputs do not collapse by using explicit flex rules
       html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
         <div style="display:flex;gap:8px;margin-top:6px;">
-          <div style="flex:1;display:flex;gap:6px;align-items:center;">
-            <input id="pA_${i}" type="text" placeholder="Player A" style="flex:1">
-            ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="min-width:110px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="display:none">`}
+          <div style="flex:1;display:flex;gap:8px;align-items:center;">
+            <input id="pA_${i}" type="text" placeholder="Player A" style="flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">
+            ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="flex:0 0 120px;min-width:90px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="display:none">`}
           </div>
-          <div style="flex:1;display:flex;gap:6px;align-items:center;">
-            <input id="pB_${i}" type="text" placeholder="Player B" style="flex:1">
-            ${duprEnabled ? `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="min-width:110px">` : `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="display:none">`}
+          <div style="flex:1;display:flex;gap:8px;align-items:center;">
+            <input id="pB_${i}" type="text" placeholder="Player B" style="flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">
+            ${duprEnabled ? `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="flex:0 0 120px;min-width:90px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">` : `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="display:none">`}
           </div>
         </div>`;
       if (isClubRR){
@@ -889,6 +890,7 @@ function startEntry(){
     };
   }
 }
+/* ---------- End startEntry ---------- */
 
 /* helper for adding club inline from entry */
 function addClubInline(index){
@@ -1827,5 +1829,3 @@ function escapeHtml(str){
 </script>
 </body>
 </html>
-
-
