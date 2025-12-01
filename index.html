@@ -56,7 +56,7 @@
   }
 
   /* Unified form controls */
-  input[type="text"], input[type="number"], select, .score-input {
+  input[type="text"], input[type="number"], .score-input {
     width:100%;
     height:var(--input-height);
     padding:0 12px;
@@ -68,34 +68,11 @@
     transition:all 0.2s ease;
   }
   input::placeholder, .score-input::placeholder { color:rgba(231,243,255,0.5); }
-  input:focus, select:focus, .score-input:focus {
+  input:focus, .score-input:focus {
     outline:none;
     border-color:var(--gold);
     background:rgba(255,255,255,0.08);
     box-shadow:0 0 0 3px rgba(212,175,55,0.2);
-  }
-  /* Custom arrow and appearance */
-  select {
-    appearance:none;
-    -webkit-appearance:none;
-    -moz-appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23e7f3ff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11l-5-5h10l-5 5z'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;
-    background-position:right 12px center;
-    padding-right:36px;
-    color:var(--card-text);
-  }
-
-  /* Make native option entries readable and add hover highlight where supported */
-  select option{
-    background:var(--card-bg);
-    color:var(--card-text);
-    padding:6px 10px;
-  }
-  /* some browsers honor option:hover */
-  select option:hover{
-    background: rgba(255,255,255,0.08);
-    color:var(--card-text);
   }
 
   .score-input { width:76px; text-align:center; font-weight:600; }
@@ -108,7 +85,7 @@
     font-weight:500;
   }
 
-  /* Form layout: make controls symmetric/horizontally aligned on wider screens */
+  /* Form layout */
   .form-row{
     display:flex;
     gap:var(--gap);
@@ -122,9 +99,6 @@
     flex: 1 1 0;
     min-width:120px;
   }
-
-  /* If you want strict equal widths irrespective of content, use this:
-     .form-item { flex: 1 1 0; } already set above. */
 
   .checkbox-row{
     display:flex;
@@ -270,13 +244,108 @@
     .card{ padding:12px; }
     .title{ font-size:14px; margin-bottom:8px; }
     label{ font-size:12px; margin-bottom:4px; }
-    input[type="text"], input[type="number"], select, .score-input { font-size:13px; height:var(--input-height); padding:0 10px; }
+    input[type="text"], input[type="number"], .score-input { font-size:13px; height:var(--input-height); padding:0 10px; }
     .form-row{ gap:8px; }
-    .form-item{ min-width:0; flex-basis:100%; } /* stack */
+    .form-item{ min-width:0; flex-basis:100%; } /* stack by default */
     .action-row{ margin-top:10px; gap:8px; }
     .team-players{ font-size:12px; }
     .match-grid{ grid-template-columns:1fr; }
     footer{ font-size:11px; }
+  }
+
+  /* -------------------- Custom dropdown styles -------------------- */
+  .custom-select-wrapper { position:relative; width:100%; }
+  .custom-select {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    cursor:pointer;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.08);
+    height:var(--input-height);
+    padding:0 12px;
+    border-radius:8px;
+    color:var(--card-text);
+    font-size:14px;
+    user-select:none;
+  }
+  .custom-select:focus { outline:none; box-shadow:0 0 0 3px rgba(212,175,55,0.12); border-color:var(--gold); }
+  .custom-select .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; text-align:left; }
+  .custom-select .arrow { width:18px; height:18px; display:inline-block; opacity:0.9; transform:rotate(0deg); transition:transform 180ms ease; }
+  .custom-select.open .arrow { transform:rotate(180deg); }
+  .custom-options {
+    position:absolute;
+    left:0; right:0;
+    margin-top:8px;
+    background:var(--card-bg);
+    color:var(--card-text);
+    border-radius:8px;
+    box-shadow:0 10px 36px rgba(2,6,20,0.6);
+    max-height:280px;
+    overflow:auto;
+    z-index:1500;
+    padding:6px 6px;
+  }
+  .custom-option {
+    padding:10px 12px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:14px;
+    color:var(--card-text);
+    display:flex;
+    align-items:center;
+  }
+  .custom-option + .custom-option { margin-top:6px; }
+  .custom-option:hover,
+  .custom-option.highlight,
+  .custom-option[aria-selected="true"] {
+    background:rgba(255,255,255,0.08);
+    color:var(--card-text);
+  }
+  /* small selects (used for club dropdowns) */
+  .custom-select.small { height:36px; font-size:13px; padding:0 10px; border-radius:6px; }
+  .custom-options.small { max-height:220px; }
+
+  /* ---------- MOBILE CONSERVATIVE COMBINATION PATCH (Option A) ---------- */
+  @media (max-width:428px){
+    /* modest compacting */
+    :root{
+      --input-height:34px;   /* slightly smaller than default but comfortable */
+      --gap:8px;
+    }
+
+    .card { padding:10px; }
+    .title { font-size:14px; margin-bottom:6px; }
+    label { font-size:12px; margin-bottom:4px; }
+    input[type="text"], input[type="number"], .score-input { font-size:13px; height:var(--input-height); padding:0 8px; }
+    .action-row { margin-top:8px; gap:8px; }
+
+    /* tighten banner */
+    .banner { height:34px; font-size:12px; padding:0 12px; }
+
+    /* place both checkbox items side-by-side to reclaim vertical space */
+    /* target .form-item that also has checkbox-row styling */
+    .form-item.checkbox-row {
+      flex: 0 0 48%;
+      min-width: 48%;
+      align-items: center;
+      margin-top: 0;
+      display: flex;
+      gap:8px;
+    }
+    /* ensure label sits nicely to the right of the checkbox */
+    .form-item.checkbox-row label { margin:0; font-size:13px; color:var(--card-text); }
+
+    /* reduce label spacing a touch */
+    .form-item > label { line-height:1; margin-bottom:6px; }
+
+    /* slightly reduce button height on mobile */
+    .btn { height:36px; font-size:13px; }
+    .btn.small { height:32px; font-size:12px; }
+
+    /* reduce vertical padding inside match cards moderately */
+    .match-card { padding:10px; }
   }
 </style>
 </head>
@@ -335,7 +404,6 @@
             </div>
             <div class="form-item checkbox-row" style="align-items:center;">
               <input id="enableQF" type="checkbox">
-              <!-- removed "(if ≥8 qualifiers)" as requested -->
               <label for="enableQF" style="margin:0;cursor:pointer;">Enable Quarterfinals</label>
             </div>
             <div class="form-item checkbox-row" style="align-items:center;">
@@ -445,20 +513,205 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-/* ---------- Minimal JS tweaks applied: 
-   - When Across Clubs selected and no clubs exist, Next opens club dialog (instead of blocking).
-   - Kept all other logic intact. */
+/* ================== Utilities & existing app code (preserved) ================== */
 
-/* Helper to get element */
 const $ = id => document.getElementById(id);
+function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
+function showToast(message, type = 'success') {
+  const container = $('toastContainer');
+  if (!container) return console.log('Toast:', message);
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
+  container.appendChild(t);
+  const timeout = setTimeout(() => {
+    t.classList.add('fadeOut');
+    setTimeout(() => t.remove(), 260);
+  }, 3500);
+  t.addEventListener('click', () => { clearTimeout(timeout); t.classList.add('fadeOut'); setTimeout(()=>t.remove(),220); });
+}
+function clampInt(v, min=0) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
+function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
-/* Existing globals & funcs unchanged above; declaring minimal additions/overrides below */
+/* ---------- App state (unchanged) ---------- */
+let teams = [];
+let fixtures = [];
+let rankings = {};
+let knockout = {};
+let clubs = [];
+let autosaveTimer = null;
+const AUTOSAVE_DELAY = 800;
+const TOAST_DURATION = 3500;
+const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
+const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
+
+/* ---------- Storage helpers (unchanged) ---------- */
+function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
+function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
+function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
+function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
+function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
+
+/* ================== CUSTOM DROPDOWN: transform native <select> into custom UI ================== */
+
+function transformSelect(sel){
+  if (!sel || sel.dataset.customized === '1') return;
+  sel.style.display = 'none';
+  sel.dataset.customized = '1';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'custom-select-wrapper';
+  const custom = document.createElement('div');
+  custom.className = 'custom-select';
+  custom.tabIndex = 0;
+  const label = document.createElement('div');
+  label.className = 'label';
+  const arrow = document.createElement('div');
+  arrow.className = 'arrow';
+  arrow.innerHTML = '&#9662;';
+  custom.appendChild(label);
+  custom.appendChild(arrow);
+
+  const optionsBox = document.createElement('div');
+  optionsBox.className = 'custom-options';
+  optionsBox.style.display = 'none';
+
+  function buildOptions(){
+    optionsBox.innerHTML = '';
+    Array.from(sel.options).forEach((opt, index) => {
+      const o = document.createElement('div');
+      o.className = 'custom-option';
+      o.tabIndex = -1;
+      o.dataset.value = opt.value;
+      o.dataset.index = index;
+      o.textContent = opt.textContent;
+      if (opt.disabled) { o.style.opacity = '0.5'; o.style.pointerEvents = 'none'; }
+      if (opt.selected) o.setAttribute('aria-selected','true');
+      o.addEventListener('click', () => {
+        selectIndex(index);
+        closeOptions();
+        sel.dispatchEvent(new Event('change', { bubbles:true }));
+      });
+      optionsBox.appendChild(o);
+    });
+  }
+
+  function syncLabel(){
+    const selected = sel.options[sel.selectedIndex];
+    label.textContent = selected ? selected.textContent : '';
+    const opts = optionsBox.querySelectorAll('.custom-option');
+    opts.forEach(o => o.removeAttribute('aria-selected'));
+    if (selected){
+      const selOpt = optionsBox.querySelector(`.custom-option[data-index="${sel.selectedIndex}"]`);
+      if (selOpt) selOpt.setAttribute('aria-selected','true');
+    }
+  }
+
+  function openOptions(){
+    if (optionsBox.childElementCount === 0) buildOptions();
+    optionsBox.style.display = 'block';
+    custom.classList.add('open');
+    highlightIndex(sel.selectedIndex || 0);
+    custom.focus();
+    document.addEventListener('click', onDocClick);
+  }
+
+  function closeOptions(){
+    optionsBox.style.display = 'none';
+    custom.classList.remove('open');
+    clearHighlight();
+    document.removeEventListener('click', onDocClick);
+  }
+
+  function onDocClick(e){
+    if (!wrapper.contains(e.target)) closeOptions();
+  }
+
+  function selectIndex(idx){
+    const index = Number(idx);
+    if (isNaN(index)) return;
+    sel.selectedIndex = index;
+    syncLabel();
+  }
+
+  let highlighted = -1;
+  function highlightIndex(idx){
+    const items = optionsBox.querySelectorAll('.custom-option');
+    if (!items || items.length===0) return;
+    if (highlighted>=0 && items[highlighted]) items[highlighted].classList.remove('highlight');
+    highlighted = Math.max(0, Math.min(items.length-1, idx));
+    if (items[highlighted]) {
+      items[highlighted].classList.add('highlight');
+      const rect = items[highlighted].getBoundingClientRect();
+      const boxRect = optionsBox.getBoundingClientRect();
+      if (rect.top < boxRect.top) items[highlighted].scrollIntoView({ block: 'nearest' });
+      if (rect.bottom > boxRect.bottom) items[highlighted].scrollIntoView({ block: 'nearest' });
+    }
+  }
+  function clearHighlight(){ const items = optionsBox.querySelectorAll('.custom-option'); items.forEach(i=>i.classList.remove('highlight')); highlighted = -1; }
+
+  custom.addEventListener('keydown', (ev) => {
+    if (optionsBox.style.display === 'none') {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+        ev.preventDefault();
+        openOptions();
+      }
+      return;
+    }
+    const items = optionsBox.querySelectorAll('.custom-option');
+    if (ev.key === 'ArrowDown'){ ev.preventDefault(); highlightIndex((highlighted+1) || 0); }
+    else if (ev.key === 'ArrowUp'){ ev.preventDefault(); highlightIndex((highlighted-1)>=0 ? (highlighted-1) : (items.length-1)); }
+    else if (ev.key === 'Enter'){
+      ev.preventDefault();
+      if (highlighted>=0 && items[highlighted]) {
+        const idx = Number(items[highlighted].dataset.index);
+        selectIndex(idx);
+        closeOptions();
+        sel.dispatchEvent(new Event('change', { bubbles:true }));
+      }
+    } else if (ev.key === 'Escape'){
+      ev.preventDefault();
+      closeOptions();
+    }
+  });
+
+  custom.addEventListener('click', (e) => {
+    if (optionsBox.style.display === 'none') openOptions();
+    else closeOptions();
+  });
+
+  sel.addEventListener('change', () => syncLabel());
+
+  const mo = new MutationObserver(mutations => {
+    if (Array.from(mutations).some(m => m.type === 'childList')) {
+      buildOptions();
+      syncLabel();
+    }
+  });
+  mo.observe(sel, { childList: true, subtree: true });
+
+  wrapper.appendChild(sel);
+  wrapper.appendChild(custom);
+  wrapper.appendChild(optionsBox);
+  sel.parentNode.insertBefore(wrapper, sel.nextSibling);
+
+  buildOptions();
+  syncLabel();
+
+  sel._custom = { wrapper, custom, optionsBox, label };
+}
+
+function transformAllSelects(){
+  document.querySelectorAll('select').forEach(s => transformSelect(s));
+}
+
+/* ----------------- Override/augment code that inserts dynamic selects --------------- */
+
 function onRRTypeChange(){
   const rr = $('rrType').value;
   $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
 }
 
-/* overriding startEntry to open club dialog when needed */
 function startEntry(){
   const n = clampInt($('numTeams').value, 2);
   if (n < 2) return showToast('Minimum 2 participants','warn');
@@ -466,7 +719,6 @@ function startEntry(){
   const dupr = $('enableDUPR').checked;
   const clubRR = $('rrType').value === 'club';
   if (clubRR && clubs.length===0) {
-    // open club dialog so user can add clubs
     openClubDialog();
     showToast('Please add clubs before entry','warn');
     return;
@@ -482,7 +734,7 @@ function startEntry(){
           <input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;">
           ${dupr ? `<input id="dA_${i}" type="text" placeholder="DUPR" style="width:120px;">` : ''}
         </div>`;
-      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
+      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>`;
     } else {
       html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;">
@@ -495,7 +747,7 @@ function startEntry(){
             ${dupr ? `<input id="dB_${i}" type="text" placeholder="DUPR B" style="margin-top:4px;">` : ''}
           </div>
         </div>`;
-      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
+      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div>`;
     }
     html += `</div>`;
   }
@@ -504,46 +756,27 @@ function startEntry(){
     <button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button>
   </div>`;
   $('entryInner').innerHTML = html;
+  // Transform any select elements we just injected (club_x)
+  document.querySelectorAll('#entryInner select').forEach(s => transformSelect(s));
   $('entryCard').style.display = 'block';
   updateBanner('Entry');
 }
 
-/* The remaining app code (helpers, storage, fixtures, rankings etc.) remains exactly as in your version.
-   For brevity I include the remainder unchanged — your original script is large and was preserved verbatim.
-   (In your deployment keep the original JS after these overrides; I did not remove anything.) */
-
-/* ---------- App State & full script (unchanged) ---------- */
-let teams = [];
-let fixtures = [];
-let rankings = {};
-let knockout = {};
-let clubs = [];
-let autosaveTimer = null;
-const AUTOSAVE_DELAY = 800;
-const TOAST_DURATION = 3500;
-const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
-const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
-function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
-function showToast(message, type = 'success') {
-  const container = $('toastContainer');
-  if (!container) return console.log('Toast:', message);
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
-  container.appendChild(t);
-  const timeout = setTimeout(() => {
-    t.classList.add('fadeOut');
-    setTimeout(() => t.remove(), 260);
-  }, TOAST_DURATION);
-  t.addEventListener('click', () => { clearTimeout(timeout); t.classList.add('fadeOut'); setTimeout(()=>t.remove(),220); });
+/* updateClubDropdowns: repopulate select elements for clubs and trigger updates for transformed selects */
+function updateClubDropdowns(){
+  document.querySelectorAll('select[id^="club_"]').forEach(sel => {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if (clubs.includes(cur)) sel.value = cur;
+    if (sel.dataset.customized === '1') {
+      sel.dispatchEvent(new Event('change', { bubbles:true }));
+    } else {
+      transformSelect(sel);
+    }
+  });
 }
-function clampInt(v, min=0) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
-function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
-function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
-function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
-function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
-function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
-function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
+
+/* Snapshot & restore */
 function snapshotCurrentState(){
   const settings = {
     gameType: $('gameType').value,
@@ -572,6 +805,7 @@ function snapshotCurrentState(){
   }
   return { settings, teams: teamsCopy, fixtures: fixturesCopy, fixtureScores, ko, timestamp: Date.now() };
 }
+
 function restoreSnapshot(data){
   if (!data) return;
   const s = data.settings || {};
@@ -585,24 +819,30 @@ function restoreSnapshot(data){
   $('courtAlloc').value = s.courtAlloc || 'roundwise';
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
   if ($('enableDUPR')) $('enableDUPR').checked = !!s.duprEnabled;
+
   onGameTypeChange();
   onRRTypeChange();
+
   teams = (data.teams || []).map(t => ({
     id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye
   }));
+
   const idToTeam = {}; teams.forEach(tt => idToTeam[tt.id] = tt);
   fixtures = (data.fixtures || []).map(f => ({
     id: f.id, matchNum: f.matchNum, court: f.court, group: f.group, round: f.round || null,
     t1: idToTeam[f.t1Id] || {id:f.t1Id,name:'??',players:[],club:'',isBye:false},
     t2: idToTeam[f.t2Id] || {id:f.t2Id,name:'??',players:[],club:'',isBye:false}
   }));
+
   showGroupSummary();
   renderFixtures();
+
   const scores = data.fixtureScores || {};
   Object.keys(scores).forEach(k => {
     if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || '';
     if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || '';
   });
+
   if (data.ko && data.ko.knockout){
     knockout = data.ko.knockout;
     renderAppropriateKnockoutView();
@@ -610,11 +850,14 @@ function restoreSnapshot(data){
     Object.keys(koScores).forEach(id => { if ($(id)) $(id).value = koScores[id] || ''; });
   } else knockout = {};
 }
+
+/* Tournament Save/Load and remaining app code (unchanged) */
 function makeTimestampName(){
   const d = new Date();
   const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}`;
 }
+
 function createTournament(name){
   const id = 't_' + Math.random().toString(36).slice(2,10);
   const tournament = { id, name: name || makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: Date.now(), snapshot: snapshotCurrentState() };
@@ -627,6 +870,7 @@ function createTournament(name){
   showToast(`Tournament created: ${tournament.name}`, 'success');
   return tournament;
 }
+
 function saveActiveTournament(manual){
   const id = getActiveTournamentId();
   if (!id) { if (manual) showToast('No active tournament. Save teams first.','warn'); return false; }
@@ -646,21 +890,25 @@ function saveActiveTournament(manual){
   if (manual) showToast('Tournament saved','success');
   return true;
 }
+
 function scheduleAutoSave(){
   ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY);
 }
+
 function ensureTournamentExistsOnFirstSave(){
   if (getActiveTournamentId()) return;
   createTournament(makeTimestampName());
 }
+
 function renderLoadControl(){
   const arr = readTournamentStore();
   const btn = $('loadBtn');
   if (btn) btn.style.display = arr.length ? 'inline-block' : 'none';
 }
+
 function openLoadDialog(){
   const arr = readTournamentStore();
   if (!arr.length) return showToast('No saved tournaments.','warn');
@@ -676,6 +924,7 @@ function openLoadDialog(){
   overlay.className = 'overlay';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+
   const list = box.querySelector('#loadList');
   arr.forEach(t => {
     const div = document.createElement('div');
@@ -690,6 +939,7 @@ function openLoadDialog(){
       </div>`;
     list.appendChild(div);
   });
+
   box.addEventListener('click', e => {
     const loadBtn = e.target.closest('button[data-id]');
     const delBtn = e.target.closest('button[data-del]');
@@ -715,6 +965,8 @@ function openLoadDialog(){
     }
   });
 }
+
+/* Tournament Info */
 function renderTournamentInfo(){
   const info = $('tournamentInfo');
   const active = getActiveTournament();
@@ -724,6 +976,7 @@ function renderTournamentInfo(){
   $('tourneyName').value = active.name || '';
   $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`;
 }
+
 function renameActiveTournament(){
   const id = getActiveTournamentId();
   if (!id) return showToast('No active tournament','warn');
@@ -738,11 +991,8 @@ function renameActiveTournament(){
   renderTournamentInfo();
   showToast('Renamed','success');
 }
-function onGameTypeChange(){
-  const type = $('gameType').value;
-  $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
-  $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
-}
+
+/* Club Management */
 function openClubDialog(){
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
@@ -762,6 +1012,7 @@ function openClubDialog(){
   overlay.className='overlay';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
+
   function renderClubs(){
     const list = box.querySelector('#clubList');
     list.innerHTML = '';
@@ -778,6 +1029,7 @@ function openClubDialog(){
     });
   }
   renderClubs();
+
   box.querySelector('#addClubBtn').onclick = () => {
     const name = prompt('Club name:')?.trim();
     if (!name) return;
@@ -786,6 +1038,7 @@ function openClubDialog(){
     renderClubs();
     updateClubDropdowns();
   };
+
   box.addEventListener('click', e => {
     const btn = e.target;
     if (btn.dataset.dir){
@@ -801,13 +1054,22 @@ function openClubDialog(){
     }
   });
 }
+
+/* Update club selects */
 function updateClubDropdowns(){
   document.querySelectorAll('select[id^="club_"]').forEach(sel => {
     const cur = sel.value;
     sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join('');
     if (clubs.includes(cur)) sel.value = cur;
+    if (sel.dataset.customized === '1') {
+      sel.dispatchEvent(new Event('change', { bubbles:true }));
+    } else {
+      transformSelect(sel);
+    }
   });
 }
+
+/* Entry & teams */
 function saveTeams(){
   const n = clampInt($('numTeams').value);
   const type = $('gameType').value;
@@ -829,6 +1091,10 @@ function saveTeams(){
   ensureTournamentExistsOnFirstSave();
   saveActiveTournament(true);
 }
+
+/* The remaining functions (assignGroups, fixtures, rankings, knockouts, exports) are unchanged and follow your original logic. */
+/* For brevity they are included exactly as earlier - preserved in full. */
+
 function assignGroups(){
   const numGroups = clampInt($('numGroups').value,1);
   teams.forEach((t,i)=> t.group = (i % numGroups) + 1);
@@ -1093,8 +1359,13 @@ function exportSchedulePDF(){
 function printSchedule(){
   window.print();
 }
-renderLoadControl();
-renderTournamentInfo();
+
+/* Init */
+document.addEventListener('DOMContentLoaded', () => {
+  transformAllSelects();
+  renderLoadControl();
+  renderTournamentInfo();
+});
 
 </script>
 </body>
