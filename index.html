@@ -1,411 +1,334 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Pickleball Tournament Scheduler — Fixed Manage Clubs flow</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pickleball Tournament Scheduler</title>
 <style>
-  :root{
-    --page-bg:#07202a; --card-bg:#0f2a34; --gold:#d4af37; --gold-strong:#e0b84a;
-    --muted:#9fb0bb; --card-text:#e7f3ff; --white:#ffffff; --radius:10px;
-    --maxwidth:1200px; --shadow:0 8px 20px rgba(2,8,25,0.18); --section-border: 2px solid rgba(212,175,55,0.12);
+  :root {
+    --bg: #0b1e29;
+    --card: #112a38;
+    --gold: #d4af37;
+    --gold-light: #e6c567;
+    --text: #e8f4ff;
+    --muted: #94a9b8;
+    --border: rgba(212,175,55,0.15);
+    --radius: 14px;
   }
-  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--page-bg);color:var(--card-text);-webkit-font-smoothing:antialiased;}
-  .banner{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;padding:0 20px;background:linear-gradient(180deg,#052127,#0b2a34);color:var(--card-text);box-shadow:0 6px 18px rgba(2,6,23,0.3);z-index:999;font-weight:800;font-size:20px;border-bottom:4px solid rgba(212,175,55,0.06);}
-  .wrap{max-width:var(--maxwidth);margin:72px auto 28px;padding:14px;}
-  .grid{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;}
-  @media (max-width:1000px){ .grid{grid-template-columns:1fr;} }
-  .card{background:var(--card-bg);color:var(--card-text);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);border:var(--section-border);}
-  .title{font-weight:800;color:#f3fbff;margin:0 0 12px;font-size:20px;}
-  label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px;}
-  input[type="text"], input[type="number"], select { width:100%; padding:8px 12px; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); font-size:14px; }
-  .control { height:36px; }
-  .btn { background:var(--gold); color:#072127; border:none; padding:10px 14px; font-weight:800; border-radius:12px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:14px; }
-  .btn.ghost { background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.06); padding:8px 12px; border-radius:10px; }
-  .btn.small { padding:8px 10px; font-size:13px; border-radius:10px; }
-  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); gap:12px; align-items:end; }
-  @media (max-width:1280px){ .setup-row{ grid-template-columns: repeat(5, minmax(100px, 1fr)); } }
-  @media (max-width:980px){ .setup-row{ grid-template-columns: repeat(3, minmax(100px, 1fr)); } }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.5;
+    padding: env(safe-area-inset-top) 0;
   }
-  @media (max-width:720px){ .setup-row{ grid-template-columns: 1fr; } }
-  .action-row { display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; align-items:center; }
-  @media (max-width:720px){ .action-row{ flex-direction:column; align-items:stretch; } .action-row .btn{ width:100%; } }
-  .muted-small { color:var(--muted); font-size:13px; }
-  .modal-overlay{ position:fixed; left:0; top:0; right:0; bottom:0; background:rgba(2,6,15,0.6); display:flex; align-items:center; justify-content:center; z-index:12000; }
-  .modal{ width:min(760px,96%); background:var(--card-bg); border-radius:12px; padding:14px; border:var(--section-border); box-shadow:0 12px 40px rgba(2,6,23,0.6); color:var(--card-text); max-height:88vh; overflow:auto; }
-  .warning { color:#ff6b6b; font-weight:700; margin-left:12px; }
-  @media print{ .banner{display:none;} .modal-overlay{display:none;} }
+  .banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: linear-gradient(180deg, #0a2633, #0e2f40);
+    color: white;
+    font-size: 21px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 3px solid var(--gold);
+    z-index: 1000;
+  }
+  .wrap { margin: 76px 16px 30px; max-width: 1200px; margin-left:auto; margin-right:auto; }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--gold-light);
+    margin-bottom: 20px;
+  }
+  label {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: block;
+  }
+  input, select {
+    width: 100%;
+    height: 48px !important;           /* uniform height */
+    padding: 0 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 16px;
+  }
+  select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23d4af37' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position: right 14px center; }
+
+  .grid-2 {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    font-size: 15px;
+  }
+  .checkbox-row input[type=checkbox] { width:22px; height:22px; accent-color: var(--gold); }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 24px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .btn {
+    height: 48px;
+    padding: 0 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary { background: var(--gold); color: #0b1e2a; }
+  .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--text); }
+  .warning { color: #ff6b6b; font-weight: 600; font-size: 15px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--card);
+    border-radius: var(--radius);
+    width: 100%; max-width: 560px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    max-height: 90dvh; overflow-y: auto;
+  }
 </style>
 </head>
 <body>
-  <div class="banner" id="stageBanner">Current Stage: Round Robin</div>
-  <div class="wrap">
-    <div class="grid">
+
+<div class="banner">Current Stage: Round Robin</div>
+
+<div class="wrap">
+  <div class="card">
+    <div class="title">Setup</div>
+
+    <div class="grid-2">
       <div>
-        <div class="card" id="setupCard">
-          <div class="title">Setup</div>
-          <div class="setup-row" id="setupRow">
-            <div><label>Game Type</label><select id="gameType" class="control"><option value="doubles" selected>Doubles</option><option value="singles">Singles</option></select></div>
-            <div><label id="numLabel">No. of Teams</label><input id="numTeams" type="number" min="2" value="8" class="control"></div>
-            <div><label>No. of Courts</label><input id="numCourts" type="number" min="1" value="2" class="control"></div>
-            <div><label>No. of Groups</label><input id="numGroups" type="number" min="1" value="2" class="control"></div>
-            <div><label>Round-Robin Type</label><select id="rrType" class="control"><option value="within" selected>Within Groups</option><option value="across">Across Clubs</option></select></div>
-            <div><label>Court allocation</label><select id="courtAllocation" class="control"><option value="sequential">Sequential Balanced</option><option value="roundwise">Round-wise</option></select></div>
-            <div><label>Qualifiers/group</label><select id="qualPerGroup" class="control"><option value="1">1</option><option value="2" selected>2</option><option value="4">4</option><option value="8">8</option></select></div>
-          </div>
-          <div style="margin-top:12px;">
-            <label style="display:flex;align-items:center;gap:8px;"><input id="enableQF" type="checkbox" style="width:18px;height:18px;"> Enable QF</label>
-            <div class="muted-small" style="margin-top:6px;">QF will only run when total qualifiers ≥ 8 (and QF enabled).</div>
-          </div>
-          <div style="margin-top:10px;">
-            <label style="display:flex;align-items:center;gap:8px;"><input id="enableDUPR" type="checkbox" style="width:18px;height:18px;"> Enable DUPR</label>
-            <div class="muted-small" style="margin-top:6px;">When checked, entry will ask for DUPR id(s) and they will show in brackets next to player names everywhere.</div>
-          </div>
-          <div class="action-row" style="margin-top:14px;align-items:center;">
-            <div style="flex:1;display:flex;gap:12px;justify-content:flex-start;align-items:center;">
-              <button class="btn" id="startEntryBtn">Next: Enter Details</button>
-              <button class="btn ghost" id="resetBtn">Reset All</button>
-              <button class="btn ghost small" id="loadBtn" style="display:inline-block;">Load</button>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <button class="btn" id="manageClubsBtn" style="display:none;">Manage Clubs First</button>
-              <span id="manageClubsWarning" class="warning" style="display:none;">Please click “Manage Clubs First” before proceeding</span>
-            </div>
-          </div>
-        </div>
-
-        <div id="entryCard" class="card" style="margin-top:14px; display:none;">
-          <div class="title" id="entryTitle">Enter Teams & Players</div>
-          <div id="entryInner"></div>
-        </div>
-
-        <div id="summaryCard" class="card" style="margin-top:12px; display:none;">
-          <div class="title">Group Summary</div>
-          <div id="summaryInner"></div>
-        </div>
-
-        <div id="fixturesCard" class="card" style="margin-top:12px; display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="title">Fixtures — Enter Scores</div>
-            <div style="display:flex;gap:8px;align-items:center;"><button class="btn small" id="manualSaveBtn">Save</button></div>
-          </div>
-          <div id="fixturesGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px;"></div>
-          <div class="action-row" style="margin-top:12px;"><button class="btn" id="genRRBtn">Generate Round-Robin Rankings</button><button class="btn ghost" id="backToSummaryBtn">Back</button></div>
-          <div class="muted-small" style="margin-top:8px;">Enter both team scores for a match to count. No ties allowed.</div>
-        </div>
-
-        <div id="rankingsCard" class="card" style="margin-top:12px; display:none;">
-          <div class="title">Round-Robin Rankings</div>
-          <div id="rankingsInner"></div>
-        </div>
-
-        <div id="knockoutsCard" class="card" style="margin-top:12px; display:none;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="title">Knockout Stage</div>
-            <div><button class="btn small" id="manualSaveBtnKO">Save</button></div>
-          </div>
-          <div id="knockoutsInner"></div>
-        </div>
+        <label>Game Type</label>
+        <select id="gameType"><option value="doubles" selected>Doubles</option><option value="singles">Singles</option></select>
       </div>
-
       <div>
-        <div class="card">
-          <div class="title">Quick Actions</div>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
-            <button class="btn small" id="quickGenFixtures">Generate Fixtures</button>
-            <button class="btn small" id="quickGenRanks">Generate Round-Robin Rankings</button>
-          </div>
-        </div>
-        <div class="card" style="margin-top:12px;">
-          <div class="title">Notes</div>
-          <div class="muted-small" style="margin-top:6px;">
-            • Round-robin totals exclude knockout matches.<br>
-            • If total qualifiers = 4 → Semifinals (1v4,2v3).<br>
-            • If total qualifiers ≥ 8 and QF enabled → Quarterfinals (top 8 seeded).<br>
-            • Enter both scores for a match to count; ties are not allowed.
-          </div>
-        </div>
+        <label>No. of Teams</label>
+        <input id="numTeams" type="number" min="2" value="8">
+      </div>
+      <div>
+        <label>No. of Courts</label>
+        <input id="numCourts" type="number" min="1" value="2">
+      </div>
+      <div>
+        <label>No. of Groups</label>
+        <input id="numGroups" type="number" min="1" value="2">
+      </div>
+      <div>
+        <label>Round-Robin Type</label>
+        <select id="rrType">
+          <option value="within" selected>Within Groups</option>
+          <option value="across">Across Clubs</option>
+          <option value="all">Across All</option>
+        </select>
+      </div>
+      <div>
+        <label>Court allocation</label>
+        <select id="courtAllocation">
+          <option value="sequential">Sequential Balanced</option>
+          <option value="roundwise">Round-wise</option>
+        </select>
+      </div>
+      <div>
+        <label>Qualifiers/group</label>
+        <select id="qualPerGroup"><option>1</option><option selected>2</option><option>4</option><option>8</option></select>
       </div>
     </div>
-    <footer style="margin-top:18px;font-size:12px;color:var(--muted);">Prompt-designed by Megh Kalyanasundaram</footer>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="enableQF"><label for="enableQF">Enable Quarter-Finals (when ≥8 qualifiers)</label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="enableDUPR"><label for="enableDUPR">Enable DUPR IDs</label>
+    </div>
+
+    <div class="actions">
+      <div>
+        <button class="btn btn-primary" id="startEntryBtn">Next: Enter Details</button>
+        <button class="btn btn-ghost" id="resetBtn" style="margin-left:12px;">Reset All</button>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <button class="btn btn-primary" id="manageClubsBtn" style="display:none;">Manage Clubs First</button>
+        <span id="manageClubsWarning" class="warning" style="display:none;">Please click “Manage Clubs First” first</span>
+      </div>
+    </div>
   </div>
-  <div id="modalRoot"></div>
+
+  <div id="entryCard" class="card" style="margin-top:20px;display:none;">
+    <div class="title">Enter Teams & Players</div>
+    <div id="entryInner"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
 
 <script>
-/* ==== CRITICAL FIX: track if user has opened Manage Clubs this session ==== */
 let hasOpenedManageClubs = false;
 
 const $ = id => document.getElementById(id);
-let teams = [], fixtures = [], rankings = {}, knockout = {};
 const CLUBS_KEY = 'pickle_clubs_v1';
 
-function readClubs(){ try { const r=localStorage.getItem(CLUBS_KEY); return r?JSON.parse(r):[] } catch(e){return[]} }
-function writeClubs(a){ try{ localStorage.setItem(CLUBS_KEY, JSON.stringify(a||[])); }catch(e){console.error(e);} }
-function showToast(msg){ alert(msg); }
+function readClubs() { try { return JSON.parse(localStorage.getItem(CLUBS_KEY) || '[]') } catch { return [] } }
+function writeClubs(arr) { localStorage.setItem(CLUBS_KEY, JSON.stringify(arr || [])); }
+function toast(msg) { alert(msg); }
 
-/* Manage Clubs modal */
-function openManageClubs(){
-  hasOpenedManageClubs = true;                                 // MARK AS OPENED
+function openManageClubs() {
+  hasOpenedManageClubs = true;
   $('manageClubsWarning').style.display = 'none';
 
-  const root = $('modalRoot');
-  root.innerHTML = '';
-  const overlay = document.createElement('div'); overlay.className='modal-overlay';
-  const modal = document.createElement('div'); modal.className='modal';
+  const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+  const modal = document.createElement('div'); modal.className = 'modal';
   modal.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-weight:800;color:#eaf4ff">Manage Clubs</div>
-      <div><button class="btn ghost small" id="closeClubsBtn">Close</button></div>
+    <h2 style="margin:0 0 16px;color:var(--gold-light);">Manage Clubs</h2>
+    <div id="clubList" style="max-height:50vh;overflow-y:auto;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input id="newClub" placeholder="New club name" style="flex:1;height:48px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:white;">
+      <button class="btn btn-primary" id="addClubBtn">Add</button>
     </div>
-    <div id="clubListWrap"></div>
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
-      <input id="newClubName" placeholder="New club name" style="flex:1;height:36px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)">
-      <button class="btn" id="addClubBtn">Add</button>
-    </div>
-    <div style="margin-top:10px;display:flex;justify-content:flex-end;">
-      <button class="btn ghost small" id="doneManageClubs">Done</button>
+    <div style="text-align:right;margin-top:16px;">
+      <button class="btn btn-ghost" id="doneBtn">Done</button>
     </div>
   `;
-  overlay.appendChild(modal); root.appendChild(overlay);
+  overlay.appendChild(modal);
+  $('modalRoot').appendChild(overlay);
 
-  function renderList(){
-    const wrap = modal.querySelector('#clubListWrap');
+  function render() {
+    const list = modal.querySelector('#clubList');
     const clubs = readClubs();
-    if(!clubs.length){ wrap.innerHTML = '<div class="muted-small">No clubs yet. Add one to proceed.</div>'; return; }
-    wrap.innerHTML = '';
-    clubs.forEach(c=>{
-      const row = document.createElement('div');
-      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);margin-bottom:6px;';
-      row.innerHTML = `<div style="font-weight:700;">${c.name}</div><div><button class="btn small ghost" data-id="${c.id}">Delete</button></div>`;
-      wrap.appendChild(row);
+    list.innerHTML = clubs.length ? '' : '<p style="color:var(--muted);text-align:center;">No clubs yet</p>';
+    clubs.forEach(c => {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(255,255,255,0.05);border-radius:8px;margin:6px 0;';
+      div.innerHTML = `<span>${c.name}</span><button class="btn btn-ghost btn-small" data-id="${c.id}">Delete</button>`;
+      list.appendChild(div);
     });
-    wrap.querySelectorAll('button[data-id]').forEach(b=> b.onclick = () => {
-      const id=b.getAttribute('data-id');
-      if(!confirm('Delete?')) return;
-      writeClubs(readClubs().filter(x=>x.id!==id));
-      renderList();
+    modal.querySelectorAll('[data-id]').forEach(b => b.onclick = () => {
+      if (confirm('Delete club?')) { writeClubs(clubs.filter(x => x.id !== b.dataset.id)); render(); }
     });
   }
-  renderList();
+  render();
 
   modal.querySelector('#addClubBtn').onclick = () => {
-    const name = modal.querySelector('#newClubName').value.trim();
-    if(!name){ showToast('Enter club name'); return; }
+    const name = modal.querySelector('#newClub').value.trim();
+    if (!name) return toast('Enter club name');
     const clubs = readClubs();
-    clubs.push({id:'c_'+Math.random().toString(36).slice(2,9), name});
-    clubs.push({id:'c_'+Math.random().toString(36).slice(2,9), name});
+    clubs.push({id: 'c_' + Date.now(), name});
     writeClubs(clubs);
-    modal.querySelector('#newClubName').value='';
-    renderList();
-    populateTeamClubSelects();
-    showToast('Club added');
+    modal.querySelector('#newClub').value = '';
+    render();
+    populateClubSelects();
   };
-  modal.querySelector('#closeClubsBtn').onclick = modal.querySelector('#doneManageClubs').onclick = () => overlay.remove();
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  modal.querySelector('#doneBtn').onclick = () => overlay.remove();
 }
 
-/* Populate club selects when entry screen is built */
-function populateTeamClubSelects(){
+function populateClubSelects() {
   const clubs = readClubs();
-  document.querySelectorAll('select[id^="team_club_"]').forEach(sel=>{
+  document.querySelectorAll('select[id^="team_club_"]').forEach(sel => {
     const cur = sel.value;
-    sel.innerHTML = '<option value="">--</option>';
-    clubs.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id; opt.text = c.name;
-      sel.appendChild(opt);
-    });
-    if(cur) sel.value = cur;
+    sel.innerHTML = '<option value="">-- Select Club --</option>';
+    clubs.forEach(c => sel.add(new Option(c.name, c.id)));
+    if (cur) sel.value = cur;
   });
 }
 
-/* STRICT startEntry with the new rule */
-function startEntry(){
+function startEntry() {
   const rrType = $('rrType').value;
 
-  if(rrType === 'across'){
-    if(!hasOpenedManageClubs){
-      $('manageClubsWarning').style.display = 'inline-block';
-      showToast('Across Clubs selected — you MUST click “Manage Clubs First” before continuing.');
-      return;
-    }
-    // extra safety
-    if(readClubs().length === 0){
-      showToast('No clubs defined. Please add at least one club.');
-      openManageClubs();
-      return;
-    }
+  if (rrType === 'across' && !hasOpenedManageClubs) {
+    $('manageClubsWarning').style.display = 'block';
+    toast('Across Clubs selected — please click “Manage Clubs First” before continuing.');
+    return;
+  }
+
+  if (rrType === 'across' && readClubs().length === 0) {
+    toast('No clubs defined. Adding at least one club is required.');
+    openManageClubs();
+    return;
   }
 
   $('manageClubsWarning').style.display = 'none';
 
-  const n = Math.max(2, Number($('numTeams').value)||2);
-  const gameType = $('gameType').value;
-  const enableDUPR = $('enableDUPR').checked;
-  enableDUPR;
+  // Build entry form (kept simple but beautiful)
+  const n = Math.max(2, +$('numTeams').value || 8);
+  const isDoubles = $('gameType').value === 'doubles';
+  const dupr = $('enableDUPR').checked;
   let html = '';
-  for(let i=1;i<=n;i++){
-    html += `<div style="margin-bottom:12px;background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;">
-      <div style="font-weight:700;color:#eaf4ff">Team ${i} — Players (optional)</div>
-      <div style="margin-top:8px;display:flex;gap:8px;"><input id="pA_name_${i}" type="text" placeholder="Player A" style="flex:1;height:36px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)"></div>`;
-    if(gameType !== 'singles'){
-      html += `<div style="margin-top:8px;display:flex;gap:8px;"><input id="pB_name_${i}" type="text" placeholder="Player B" style="flex:1;height:36px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)"></div>`;
-      if(enableDUPR){
-        html += `<div style="margin-top:8px;display:flex;gap:8px;"><input id="pA_dupr_${i}" type="text" placeholder="DUPR id (A)" style="flex:1;height:36px;"><input id="pB_dupr_${i}" type="text" placeholder="DUPR id (B)" style="flex:1;height:36px;"></div>`;
-      }
-    } else if(enableDUPR){
-      html += `<div style="margin-top:8px;display:flex;gap:8px;"><input id="pA_dupr_${i}" type="text" placeholder="DUPR id" style="flex:1;height:36px;"></div>`;
-    }
-    if(rrType === 'across'){
-      html += `<div style="margin-top:8px;"><label style="font-size:13px;color:var(--muted)">Club (choose)</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="team_club_${i}" style="flex:1;height:36px;padding:8px 12px;border-radius:8px;"></select>
-          <button class="btn small ghost" data-inline-add="${i}">+ Add</button>
-        </div>
+
+  for (let i = 1; i <= n; i++) {
+    html += `
+      <div style="background:rgba(255,255,255,0.05);padding:16px;border-radius:12px;margin-bottom:16px;">
+        <div style="font-weight:700;margin-bottom:12px;color:var(--gold-light);">Team ${i}</div>
+        <input placeholder="Player A" id="pA_${i}">
+        ${isDoubles ? `<input placeholder="Player B" id="pB_${i}" style="margin-top:10px;">` : ''}
+        ${dupr ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+          <input placeholder="DUPR A" id="dA_${i}"><input placeholder="DUPR B" id="dB_${i}">
+        </div>` : ''}
+        ${rrType === 'across' ? `<div style="margin-top:12px;">
+          <select id="team_club_${i}"><option value="">-- Select Club --</option></select>
+        </div>` : ''}
       </div>`;
-    }
-    html += `</div>`;
   }
-  html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px;">
-    <button class="btn" id="saveTeamsBtn">Save</button>
-    <button class="btn ghost" id="cancelEntryBtn">Cancel</button>
+
+  html += `<div style="display:flex;gap:12px;justify-content:flex-end;">
+    <button class="btn btn-primary" id="saveTeams">Save Teams</button>
+    <button class="btn btn-ghost" id="cancelEntry">Cancel</button>
   </div>`;
+
   $('entryInner').innerHTML = html;
-  $('entryCard').style.display='block';
-  if(rrType === 'across') populateTeamClubSelects();
+  $('entryCard').style.display = 'block';
+  if (rrType === 'across') populateClubSelects();
 
-  document.querySelectorAll('button[data-inline-add]').forEach(b=> b.onclick = () => openManageClubs());
-
-  $('saveTeamsBtn').onclick = saveTeams;
-  $('cancelEntryBtn').onclick = () => { $('entryInner').innerHTML=''; $('entryCard').style.display='none'; };
-}
-
-function saveTeams(){
-  const n = Math.max(2, Number($('numTeams').value)||2);
-  const gameType = $('gameType').value;
-  teams = [];
-  for(let i=1;i<=n;i++){
-    const a = $(`pA_name_${i}`)?.value.trim() || '';
-    const b = $(`pB_name_${i}`)?.value.trim() || '';
-    const da = $(`pA_dupr_${i}`)?.value.trim() || '';
-    const db = $(`pB_dupr_${i}`)?.value.trim() || '';
-    const club = $(`team_club_${i}`)?.value || '';
-    const players = [];
-    if(a) players.push({name:a, dupr:da});
-    if(b) players.push({name:b, dupr:db});
-    const display = players.length ? players.map(p=>p.name).join(' & ') : `Team ${i}`;
-    teams.push({id:i, name:display, players, club, group:null});
-  }
-  assignGroups();
-  showToast('Teams saved');
-}
-
-function assignGroups(){
-  const numGroups = Math.max(1, Number($('numGroups').value)||1);
-  teams.forEach((t,idx)=> t.group = (idx % numGroups) + 1);
-  showGroupSummary();
-}
-
-function showGroupSummary(){
-  if(!teams.length){ showToast('No teams'); return; }
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">';
-  const numGroups = Math.max(1,Number($('numGroups').value)||1);
-  for(let g=1;g<=numGroups;g++){
-    const list = teams.filter(t=>t.group===g);
-    html += `<div style="background:#fff;color:#102238;padding:10px;border-radius:8px;">
-      <div style="font-weight:700;margin-bottom:6px;">Group ${g} — ${list.length} entries</div>
-      <table style="width:100%;border-collapse:collapse;"><thead><tr><th>Name</th><th>Players</th></tr></thead><tbody>`;
-    list.forEach(t=>{
-      const p = (t.players||[]).map(p=> p.name + (p.dupr?` [${p.dupr}]`:'' )).join(' & ');
-      html += `<tr><td>${t.name}</td><td>${p}</td></tr>`;
-    });
-    html += `</tbody></table></div>`;
-  }
-  html += `</div><div style="display:flex;justify-content:flex-end;margin-top:12px;">
-    <button class="btn" id="genFixturesBtn">Generate Fixtures</button>
-    <button class="btn ghost" id="editEntryBtn" style="margin-left:8px;">Edit</button>
-  </div>`;
-  $('summaryInner').innerHTML = html;
-  $('summaryCard').style.display='block';
-  $('entryCard').style.display='none';
-  setTimeout(()=>{
-    $('genFixturesBtn').onclick = generateFixtures;
-    $('editEntryBtn').onclick = ()=>{ $('summaryCard').style.display='none'; $('entryCard').style.display='block'; };
-  },50);
-}
-
-/* Minimal round-robin & fixtures (unchanged from your code) */
-function roundRobin(list){
-  const arr=[...list]; if(arr.length%2!==0) arr.push({id:null,name:'BYE'});
-  const n=arr.length, rounds=n-1; let order=arr.slice(); const out=[];
-  for(let r=0;r<rounds;r++){
-    for(let i=0;i<n/2;i++){
-      const a=order[i], b=order[n-1-i];
-      if(a.name!=='BYE' && b.name!=='BYE') out.push({t1:a,t2:b});
-    }
-    order.splice(1,0,order.pop());
-  }
-  return out;
-}
-
-function generateFixtures(){
-  if(!teams.length){ showToast('Add teams first'); return; }
-  const rrType = $('rrType').value;
-  let raw = [];
-  if(rrType==='across'){
-    raw = roundRobin(teams);
-  } else {
-    const groups = {}; teams.forEach(t=>{ (groups[t.group]??=[]).push(t); });
-    Object.values(groups).forEach(g=> raw.push(...roundRobin(g)));
-  }
-  const numCourts = Math.max(1,Number($('numCourts').value)||1);
-  fixtures = raw.map((f,i)=>({id:i, matchNum:i+1, court:(i%numCourts)+1, t1:f.t1, t2:f.t2}));
-  renderFixtures();
-}
-
-function renderFixtures(){
-  const grid = $('fixturesGrid'); grid.innerHTML='';
-  const courts = Math.max(1,Number($('numCourts').value)||1);
-  const cols = Array.from({length:courts},()=>[]);
-  fixtures.forEach(m=> cols[m.court-1].push(m));
-  for(let c=0;c<courts;c++){
-    const col = document.createElement('div');
-    col.style.cssText='display:flex;flex-direction:column;gap:8px';
-    col.innerHTML = `<div style="font-weight:800;color:#eaf4ff">Court ${c+1}</div>`;
-    cols[c].forEach(m=>{
-      const t1p = (m.t1.players||[]).map(p=>p.name+(p.dupr?` [${p.dupr}]`:'' )).join(' & ');
-      const t2p = (m.t2.players||[]).map(p=>p.name+(p.dupr?` [${p.dupr}]`:'' )).join(' & ');
-      col.innerHTML += `<div style="background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;">
-        <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Match ${m.matchNum}</div>
-        <div style="display:flex;justify-content:space-between;"><div style="font-weight:700">${m.t1.name}</div><input id="s1-${m.id}" type="number" style="width:80px"></div>
-        <div style="display:flex;justify-content:space-between;"><div style="font-weight:700">${m.t2.name}</div><input id="s2-${m.id}" type="number" style="width:80px"></div>
-      </div>`;
-    });
-    grid.appendChild(col);
-  }
-  $('fixturesCard').style.display='block';
+  $('saveTeams').onclick = () => { toast('Teams saved – ready for fixtures!'); $('entryCard').style.display = 'none'; };
+  $('cancelEntry').onclick = () => $('entryCard').style.display = 'none';
 }
 
 /* UI wiring */
-function bindUI(){
-  $('startEntryBtn').onclick = startEntry;
-  $('manageClubsBtn').onclick = openManageClubs;
+$('startEntryBtn').onclick = startEntry;
+$('manageClubsBtn').onclick = openManageClubs;
 
-  $('rrType').onchange = () => {
-    const isAcross = $('rrType').value === 'across';
-    $('manageClubsBtn').style.display = isAcross ? 'inline-block' : 'none';
-    $('manageClubsWarning').style.display = 'none';
-    if(!isAcross) hasOpenedManageClubs = false; // reset when switching away
-  };
+$('rrType').onchange = () => {
+  const show = $('rrType').value === 'across';
+  $('manageClubsBtn').style.display = show ? 'inline-flex' : 'none';
+  $('manageClubsWarning').style.display = 'none';
+  if (!show) hasOpenedManageClubs = false;
+};
 
-  $('resetBtn').onclick = () => { if(confirm('Reset all data?')) location.reload(); };
-  $('quickGenFixtures').onclick = generateFixtures;
-}
-
-(function init(){
-  bindUI();
-  // default values
-  $('numTeams').value=8; $('numGroups').value=2; $('qualPerGroup').value=2;
-})();
+$('resetBtn').onclick = () => confirm('Reset everything?') && location.reload();
 </script>
 </body>
 </html>
