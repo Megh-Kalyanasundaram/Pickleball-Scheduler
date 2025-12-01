@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Pickleball Tournament Scheduler</title>
-<meta name="description" content="A compact, mobile-friendly web app to create fixtures, record scores, and generate live rankings and knockouts for pickleball tournaments — no spreadsheets needed."/>
+<meta name="description" content="Pickleball Tournament Scheduler — fixtures, scores, rankings, knockouts.">
 <style>
   :root{
     --page-bg:#f5f6f7;
@@ -194,7 +194,7 @@
             </div>
 
             <div>
-              <label>Round-Robin</label>
+              <label>Round-Robin Type</label>
               <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
@@ -221,16 +221,16 @@
             </div>
 
             <div>
-              <label>Enable DUPR</label>
+              <label>Enable DUPR IDs</label>
               <div style="display:flex;align-items:center;gap:8px;">
                 <input id="enableDUPR" type="checkbox" /> <div class="helper-small">When checked, entry will ask for DUPR id(s) and they’ll show in brackets next to player names everywhere.</div>
               </div>
             </div>
           </div>
 
-          <!-- Manage clubs control -->
+          <!-- Manage clubs control (inline onclick to ensure working) -->
           <div class="manage-clubs-row">
-            <button id="manageClubsBtn" class="btn small ghost" style="display:none;" type="button">Manage Clubs</button>
+            <button id="manageClubsBtn" class="btn small ghost" style="display:none;" type="button" onclick="openClubDialog()">Manage Clubs</button>
           </div>
 
           <div class="action-row" style="margin-top:8px;align-items:center;">
@@ -402,7 +402,7 @@ function snapshotCurrentState(){
     clubs: clubs.slice(),
     duprEnabled: !!$('enableDUPR')?.checked
   };
-  const teamsCopy = teams.map(t => ({ ...t, players: (t.players||[]).map(p => (typeof p === 'string') ? {name:p, dupr:''} : {...p}) }));
+  const teamsCopy = teams.map(t => ({ ...t, players: (t.players||[]).map(p => ({...p})) }));
   const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id, round: f.round || null }));
   const fixtureScores = {};
   fixtures.forEach(f => {
@@ -440,7 +440,6 @@ function restoreSnapshot(data){
     const playersRaw = t.players || [];
     const players = playersRaw.map(p => {
       if (!p) return { name: '', dupr: '' };
-      if (typeof p === 'string') return { name: p, dupr: '' };
       return { name: p.name || '', dupr: p.dupr || '' };
     });
     return { id: t.id, name: t.name, players, group: t.group || null, club: t.club || '', isBye: !!t.isBye };
@@ -795,7 +794,7 @@ function updateClubDropdowns(){
   });
 }
 
-/* ---------- START ENTRY (fixed placeholders order) ---------- */
+/* ---------- START ENTRY (Option B placeholders) ---------- */
 function startEntry(){
   const n = clampInt($('numTeams').value, 0);
   if (n < 2) { showToast('Please enter at least 2 participants.','warn'); return; }
@@ -817,7 +816,7 @@ function startEntry(){
       html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label>
                <div style="display:flex;gap:8px;align-items:center;">
                  <input id="pA_${i}" type="text" placeholder="Player name" style="flex:2">
-                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id" style="flex:1;min-width:100px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id" style="display:none">`}
+                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="flex:1;min-width:100px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (Player)" style="display:none">`}
                </div>`;
       if (isClubRR){
         html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
@@ -830,11 +829,11 @@ function startEntry(){
         <div style="display:flex;gap:8px;margin-top:6px;">
           <div style="flex:1;display:flex;gap:6px;align-items:center;">
             <input id="pA_${i}" type="text" placeholder="Player A" style="flex:1">
-            ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id" style="min-width:110px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id" style="display:none">`}
+            ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="min-width:110px">` : `<input id="dA_${i}" type="text" placeholder="DUPR id (A)" style="display:none">`}
           </div>
           <div style="flex:1;display:flex;gap:6px;align-items:center;">
             <input id="pB_${i}" type="text" placeholder="Player B" style="flex:1">
-            ${duprEnabled ? `<input id="dB_${i}" type="text" placeholder="DUPR id" style="min-width:110px">` : `<input id="dB_${i}" type="text" placeholder="DUPR id" style="display:none">`}
+            ${duprEnabled ? `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="min-width:110px">` : `<input id="dB_${i}" type="text" placeholder="DUPR id (B)" style="display:none">`}
           </div>
         </div>`;
       if (isClubRR){
@@ -864,6 +863,31 @@ function startEntry(){
     }
   };
   $('cancelEntryBtn').onclick = cancelEntry;
+
+  // re-render logic if user toggles DUPR while entry open (preserve entered values)
+  const duprBox = $('enableDUPR');
+  if (duprBox) {
+    duprBox.onchange = () => {
+      const temp = [];
+      for (let i=1;i<=n;i++){
+        temp.push({
+          pA: $(`pA_${i}`) ? $(`pA_${i}`).value : '',
+          pB: $(`pB_${i}`) ? $(`pB_${i}`).value : '',
+          dA: $(`dA_${i}`) ? $(`dA_${i}`).value : '',
+          dB: $(`dB_${i}`) ? $(`dB_${i}`).value : '',
+          club: $(`club_${i}`) ? $(`club_${i}`).value : ''
+        });
+      }
+      startEntry();
+      for (let i=1;i<=n;i++){
+        if ($(`pA_${i}`)) $(`pA_${i}`).value = temp[i-1].pA || '';
+        if ($(`pB_${i}`)) $(`pB_${i}`).value = temp[i-1].pB || '';
+        if ($(`dA_${i}`)) $(`dA_${i}`).value = temp[i-1].dA || '';
+        if ($(`dB_${i}`)) $(`dB_${i}`).value = temp[i-1].dB || '';
+        if ($(`club_${i}`)) $(`club_${i}`).value = temp[i-1].club || '';
+      }
+    };
+  }
 }
 
 /* helper for adding club inline from entry */
@@ -952,7 +976,6 @@ function assignGroups(){
 /* player display with DUPR */
 function playerDisplay(p){
   if (!p) return '';
-  if (typeof p === 'string') return p;
   const name = (p.name || '').trim();
   const dupr = (p.dupr || '').trim();
   return dupr ? `${escapeHtml(name)} [${escapeHtml(dupr)}]` : escapeHtml(name);
@@ -1367,7 +1390,7 @@ function proceedToKnockouts(){
   else return showToast('Insufficient qualifiers for knockouts (need at least 4 for semis or 8 for quarters).','warn');
 }
 
-/* Quarterfinals etc. (kept as before) */
+/* Quarterfinals etc. */
 function prepareQuarterfinals(qualifiedList){
   const prepared = qualifiedList.slice(0,8);
   const top8 = prepared;
@@ -1589,11 +1612,146 @@ function finalizeKnockouts(){
   }
 }
 
-/* ---------- Exports (CSV & PDF) ---------- */
-/* ... (kept same logic as earlier; for brevity in this message the functions remain intact) ... */
+/* ---------- Exports ---------- */
+function exportRankingsCSV(){
+  if (!rankings || Object.keys(rankings).length === 0) return showToast('No rankings to export.','warn');
+  const rows=[['Group','Rank','ID','Name','Players','Club','MatchesWon','PtsWon','PtsLost','Diff']];
+  Object.keys(rankings).forEach(g=>{
+    (rankings[g]||[]).forEach(r=>{
+      const players = (r.players||[]).map(playerDisplay).join(' & ');
+      rows.push([g,String(r.rank||''),String(r.id||''),String(r.name||'').replace(/"/g,'""'),String(players.replace(/"/g,'""')),String(r.club||''),String(r.matchesWon||0),String(r.ptsWon||0),String(r.ptsLost||0),String(r.diff||0)]);
+    });
+  });
+  const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'rankings.csv'; document.body.appendChild(a);
+  a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+  showToast('Rankings CSV exported.','success');
+}
 
-/* For completeness include CSV and PDF functions similar to earlier block (omitted here to keep message concise). */
-/* (In the actual file these functions are present — exportRankingsCSV, exportSummaryPDF, exportSchedulePDF, buildTeamsHtml, buildRankHtml, buildScheduleHtml, etc.) */
+function exportSummaryPDF(){
+  const active = getActiveTournament();
+  if (!active) return showToast('No active tournament to export.','warn');
+
+  const title = active.name || 'Tournament';
+  const created = new Date(active.createdAt).toLocaleString();
+  const lastSaved = new Date(active.lastSaved || active.createdAt).toLocaleString();
+
+  const teamsHtml = buildTeamsHtml();
+  const rankHtml = buildRankHtml();
+  const koHtml = buildKoHtml();
+
+  const page = `
+    <html><head><title>${escapeHtml(title)}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#102238;padding:18px;}
+      h1{font-size:20px;margin-bottom:6px;}
+      h3{font-size:16px;margin-top:12px;margin-bottom:6px;}
+      table{font-size:12px;border-collapse:collapse;width:100%}
+      td,th{padding:6px;border:1px solid #eee}
+    </style>
+    </head><body>
+      <h1>${escapeHtml(title)}</h1>
+      <div style="color:#667085;font-size:12px;margin-bottom:10px;">Created: ${created} • Saved: ${lastSaved}</div>
+      ${teamsHtml}
+      ${rankHtml}
+      ${koHtml}
+    </body></html>
+  `;
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Popup blocked — allow popups to export PDF.','warn'); return; }
+  w.document.open();
+  w.document.write(page);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 350);
+}
+
+function exportSchedulePDF(){
+  const active = getActiveTournament();
+  if (!active) return showToast('No active tournament to export.','warn');
+
+  const title = active.name || 'Tournament';
+  const created = new Date(active.createdAt).toLocaleString();
+
+  let scheduleHtml = `<h3>Schedule</h3><table style="width:100%;border-collapse:collapse;"><thead><tr><th>Match</th><th>Court</th><th>Group</th><th>Team A</th><th>Players A</th><th>Team B</th><th>Players B</th></tr></thead><tbody>`;
+  fixtures.forEach(m => {
+    const aPlayers = (m.t1 && m.t1.players) ? (m.t1.players.map(playerDisplay).join(' & ')) : '';
+    const bPlayers = (m.t2 && m.t2.players) ? (m.t2.players.map(playerDisplay).join(' & ')) : '';
+    scheduleHtml += `<tr><td>${m.matchNum}</td><td>${m.court}</td><td>${escapeHtml(m.group)}</td><td>${escapeHtml(m.t1.name)}</td><td>${aPlayers}</td><td>${escapeHtml(m.t2.name)}</td><td>${bPlayers}</td></tr>`;
+  });
+  scheduleHtml += '</tbody></table>';
+
+  const page = `
+    <html><head><title>${escapeHtml(title)} - Schedule</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#102238;padding:12px;}
+      h1{font-size:18px;margin-bottom:6px;}
+      table{font-size:12px;border-collapse:collapse;width:100%}
+      td,th{padding:6px;border:1px solid #eee}
+    </style>
+    </head><body>
+      <h1>${escapeHtml(title)} — Schedule</h1>
+      <div style="color:#667085;font-size:12px;margin-bottom:10px;">Created: ${created}</div>
+      ${scheduleHtml}
+    </body></html>
+  `;
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Popup blocked — allow popups to export PDF.','warn'); return; }
+  w.document.open();
+  w.document.write(page);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 350);
+}
+
+/* helpers to build export sections */
+function buildTeamsHtml(){
+  let html = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
+  teams.forEach(t => {
+    const players = (t.players||[]).map(p => (p.dupr ? `${p.name} [${p.dupr}]` : p.name)).join(', ');
+    html += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(players)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.group||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.club||'')}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+function buildRankHtml(){
+  let rankHtml = '<h3>Rankings</h3>';
+  if (!rankings || Object.keys(rankings).length===0) rankHtml += '<div>No rankings generated.</div>';
+  else {
+    Object.keys(rankings).forEach(k=>{
+      rankHtml += `<h4>${k==='all' ? 'Overall' : 'Group ' + k}</h4>`;
+      rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
+      (rankings[k]||[]).forEach(r=>{
+        const players = (r.players||[]).map(playerDisplay).join(' & ');
+        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}${r.club ? ' • ' + escapeHtml(r.club) : ''}<div style="font-size:11px;color:#667085">${players}</div></td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
+      });
+      rankHtml += '</tbody></table>';
+    });
+  }
+  return rankHtml;
+}
+function buildKoHtml(){
+  let koHtml = '<h3>Knockout Results</h3>';
+  if (!knockout || (!knockout.qf && !knockout.sf1 && !knockout.final)) koHtml += '<div>No knockout stage run yet.</div>';
+  else {
+    if (knockout.qf) {
+      koHtml += '<h4>Quarterfinals</h4><ul>';
+      knockout.qf.forEach(q=> koHtml += `<li>${escapeHtml(q.a.name)} vs ${escapeHtml(q.b.name)}</li>`);
+      koHtml += '</ul>';
+    }
+    if (knockout.sf1 && knockout.sf2) {
+      koHtml += `<h4>Semifinals</h4><ul><li>${escapeHtml(knockout.sf1.a.name)} vs ${escapeHtml(knockout.sf1.b.name)}</li><li>${escapeHtml(knockout.sf2.a.name)} vs ${escapeHtml(knockout.sf2.b.name)}</li></ul>`;
+    }
+    if (knockout.final) {
+      koHtml += `<h4>Final</h4><div>${escapeHtml(knockout.final.a.name)} vs ${escapeHtml(knockout.final.b.name)}</div>`;
+    }
+    if (knockout.third) {
+      koHtml += `<h4>3rd Place</h4><div>${escapeHtml(knockout.third.a.name)} vs ${escapeHtml(knockout.third.b.name)}</div>`;
+    }
+  }
+  return koHtml;
+}
 
 /* ---------- Reset ---------- */
 function resetAll(){
@@ -1646,10 +1804,7 @@ function bindUI(){
   $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = manualSaveFromUI);
   $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
 
-  // Manage Clubs button
-  const manageBtn = $('manageClubsBtn');
-  if (manageBtn) manageBtn.addEventListener('click', (ev) => { openClubDialog(); });
-
+  // Manage Clubs button already has inline onclick for reliability
   const backBtn = $('backToSummaryBtn');
   if (backBtn) backBtn.onclick = () => { $('fixturesCard').style.display='none'; $('summaryCard').style.display='block'; updateBanner('Group Summary'); };
 }
@@ -1672,4 +1827,3 @@ function escapeHtml(str){
 </script>
 </body>
 </html>
-
