@@ -53,11 +53,11 @@
   .btn.block { display:block; width:100%; }
 
   /* Setup row: ensure consistent vertical alignment and symmetry */
-  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:12px; align-items:start; }
+  .setup-row{ display:grid; grid-template-columns: repeat(8, minmax(90px, 1fr)); gap:10px; align-items:start; }
   .setup-row > div { display:flex; flex-direction:column; justify-content:flex-start; }
-  @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(5, minmax(90px, 1fr)); } }
+  @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(6, minmax(90px, 1fr)); } }
   @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
-  @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); gap:8px; } }
   @media (max-width:420px){ .setup-row{ grid-template-columns: 1fr; } }
 
   .manage-clubs-row { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
@@ -92,6 +92,7 @@
     .team-players { font-size:11px; }
     .match-title { font-size:12px; }
     .score-input { width:60px; }
+    input[type="text"], input[type="number"], select { padding:6px; font-size:13px; }
   }
 
   .toast-container {
@@ -213,6 +214,13 @@
                 <option value="4">4</option>
                 <option value="8">8</option>
               </select>
+            </div>
+
+            <div>
+              <label>Enable DUPR IDs</label>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <input id="enableDUPR" type="checkbox" /> <div class="helper-small">When checked, entry will ask for DUPR id(s) and they’ll show in brackets next to player names everywhere.</div>
+              </div>
             </div>
           </div>
 
@@ -387,9 +395,11 @@ function snapshotCurrentState(){
     enableQF: !!$('enableQF')?.checked,
     rrType: $('rrType').value,
     courtAlloc: $('courtAlloc').value,
-    clubs: clubs.slice()
+    clubs: clubs.slice(),
+    duprEnabled: !!$('enableDUPR')?.checked
   };
-  const teamsCopy = teams.map(t => ({ ...t }));
+  // teams players store structured objects always
+  const teamsCopy = teams.map(t => ({ ...t, players: (t.players||[]).map(p => (typeof p === 'string') ? {name:p, dupr:''} : {...p}) }));
   const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id, round: f.round || null }));
   const fixtureScores = {};
   fixtures.forEach(f => {
@@ -418,15 +428,27 @@ function restoreSnapshot(data){
   if (s.rrType) $('rrType').value = s.rrType;
   if (s.courtAlloc) $('courtAlloc').value = s.courtAlloc;
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
+  if (typeof s.duprEnabled !== 'undefined') $('enableDUPR').checked = !!s.duprEnabled;
+
   onGameTypeChange();
   onRRTypeChange();
 
-  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
-  const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
-  fixtures = (data.fixtures || []).map(f => ({
+  // Teams: support either legacy string arrays or structured objects
+  teams = (data.teams || []).map(t => {
+    const playersRaw = t.players || [];
+    const players = playersRaw.map(p => {
+      if (!p) return { name: '', dupr: '' };
+      if (typeof p === 'string') return { name: p, dupr: '' };
+      return { name: p.name || '', dupr: p.dupr || '' };
+    });
+    return { id: t.id, name: t.name, players, group: t.group || null, club: t.club || '', isBye: !!t.isBye };
+  });
+  const idToTeam = {}; teams.forEach(tt => idToTeam[tt.id] = tt);
+
+  fixtures = (data.fixtures || []).map((f, idx) => ({
     id: f.id, matchNum: f.matchNum, court: f.court, group: f.group, round: f.round || null,
-    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], club:'', isBye: f.t1Id && String(f.t1Id).startsWith('bye') },
-    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], club:'', isBye: f.t2Id && String(f.t2Id).startsWith('bye') }
+    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], club:'', isBye: false },
+    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], club:'', isBye: false }
   }));
 
   showGroupSummary();
@@ -779,6 +801,7 @@ function startEntry(){
   const type = $('gameType').value;
   const rrType = $('rrType').value;
   const isClubRR = rrType === 'club';
+  const duprEnabled = !!$('enableDUPR').checked;
 
   if (isClubRR && (!clubs || clubs.length === 0)){
     showToast('Please add clubs first (Manage Clubs).','warn');
@@ -790,7 +813,11 @@ function startEntry(){
   for (let i=1;i<=n;i++){
     html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
     if (type === 'singles'){
-      html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label><input id="pA_${i}" type="text" placeholder="Player name">`;
+      html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label>
+               <div style="display:flex;gap:8px;align-items:center;">
+                 <input id="pA_${i}" type="text" placeholder="Player name" style="flex:2">
+                 ${duprEnabled ? `<input id="dA_${i}" type="text" placeholder="DUPR id" style="flex:1;min-width:100px">` : ''}
+               </div>`;
       if (isClubRR){
         html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
             <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
@@ -799,7 +826,10 @@ function startEntry(){
       }
     } else {
       html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
-        <div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"></div>`;
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <div style="flex:1;display:flex;gap:6px;align-items:center;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="dA_${i}" type="text" placeholder="DUPR id" style="${duprEnabled ? 'min-width:110px' : 'display:none'}"></div>
+          <div style="flex:1;display:flex;gap:6px;align-items:center;"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"><input id="dB_${i}" type="text" placeholder="DUPR id" style="${duprEnabled ? 'min-width:110px' : 'display:none'}"></div>
+        </div>`;
       if (isClubRR){
         html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
             <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
@@ -812,6 +842,16 @@ function startEntry(){
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" id="saveTeamsBtn">Save</button><button class="btn ghost" id="cancelEntryBtn">Cancel</button></div>`;
   $('entryInner').innerHTML = html;
   updateClubDropdowns();
+
+  // Show/hide DUPR fields properly if enabled
+  if (!$('enableDUPR').checked) {
+    // hide inputs if present
+    for (let i=1;i<=n;i++){
+      const dA = $(`dA_${i}`), dB = $(`dB_${i}`);
+      if (dA) dA.style.display = 'none';
+      if (dB) dB.style.display = 'none';
+    }
+  }
 
   $('entryCard').style.display = 'block';
   $('fixturesCard').style.display = 'none';
@@ -847,21 +887,36 @@ function addClubInline(index){
   showToast(`Added club: ${name}`,'success');
 }
 
+/* ---------- Save Teams (store players as objects) ---------- */
 function saveTeams(){
   const n = clampInt($('numTeams').value, 0);
   const type = $('gameType').value;
   const rrType = $('rrType').value;
   const isClubRR = rrType === 'club';
+  const duprEnabled = !!$('enableDUPR').checked;
+
   teams = [];
   for (let i=1;i<=n;i++){
     const v1 = ($(`pA_${i}`)?.value || '').trim();
     const v2 = ($(`pB_${i}`)?.value || '').trim();
+    const d1 = duprEnabled ? (($(`dA_${i}`)?.value || '').trim()) : '';
+    const d2 = duprEnabled ? (($(`dB_${i}`)?.value || '').trim()) : '';
     const clubVal = isClubRR ? (($(`club_${i}`)?.value || '').trim()) : '';
     const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
-    const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
-    const name = (players.length > 0 && type === 'singles') ? players[0] : defaultName;
-    const teamId = generateId('team');
-    teams.push({ id: teamId, name, players, group:null, club: clubVal || '', isBye: false });
+
+    if (type === 'singles'){
+      const playerName = v1 || defaultName;
+      const players = [{ name: playerName, dupr: d1 || '' }];
+      const teamId = generateId('team');
+      teams.push({ id: teamId, name: playerName, players, group:null, club: clubVal || '', isBye: false });
+    } else {
+      const players = [];
+      if (v1) players.push({ name: v1, dupr: d1 || '' }); else players.push({ name: `P${i}A`, dupr: d1 || ''});
+      if (v2) players.push({ name: v2, dupr: d2 || '' }); else players.push({ name: `P${i}B`, dupr: d2 || ''});
+      const teamName = (players[0].name && players[1].name) ? `Team ${i}` : `Team ${i}`;
+      const teamId = generateId('team');
+      teams.push({ id: teamId, name: teamName, players, group:null, club: clubVal || '', isBye: false });
+    }
   }
   assignGroups();
 }
@@ -895,6 +950,15 @@ function assignGroups(){
   showGroupSummary();
 }
 
+/* ---------- Helper to display player with DUPR ---------- */
+function playerDisplay(p){
+  if (!p) return '';
+  if (typeof p === 'string') return p; // legacy
+  const name = (p.name || '').trim();
+  const dupr = (p.dupr || '').trim();
+  return dupr ? `${escapeHtml(name)} [${escapeHtml(dupr)}]` : escapeHtml(name);
+}
+
 /* ---------- Show Group Summary ---------- */
 function showGroupSummary(){
   if (!teams || teams.length === 0) return showToast('No participants defined.','warn');
@@ -910,7 +974,10 @@ function showGroupSummary(){
       const g = byClub[clubName] || [];
       html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">${escapeHtml(clubName)} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th></tr></thead><tbody>`;
       if (g.length===0) html += `<tr><td colspan="2" class="muted">No entries</td></tr>`;
-      else g.forEach(t => html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td></tr>`);
+      else g.forEach(t => {
+        const players = (t.players||[]).map(playerDisplay).join(' & ');
+        html += `<tr><td>${escapeHtml(t.name)}</td><td>${players}</td></tr>`;
+      });
       html += '</tbody></table></div>';
     });
   } else {
@@ -921,8 +988,9 @@ function showGroupSummary(){
       html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th><th>Club</th></tr></thead><tbody>`;
       if (g.length===0) html += `<tr><td colspan="3" class="muted">No entries</td></tr>`;
       else g.forEach(t => {
+        const players = (t.players||[]).map(playerDisplay).join(' & ');
         const clubCell = t.club ? escapeHtml(t.club) : `<span class="badge-unassigned">Unassigned</span>`;
-        html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td><td>${clubCell}</td></tr>`;
+        html += `<tr><td>${escapeHtml(t.name)}</td><td>${players}</td><td>${clubCell}</td></tr>`;
       });
       html += '</tbody></table></div>';
     });
@@ -959,7 +1027,6 @@ function generateFixtures(){
     Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
   }
 
-  // Build fixtures array with placeholder court and then allocate based on chosen allocation strategy
   fixtures = rawFixtures.map((f, idx) => ({
     id: idx,
     matchNum: idx+1,
@@ -971,7 +1038,6 @@ function generateFixtures(){
   }));
 
   if (courtAlloc === 'roundwise') {
-    // assign courts by round: round 1 matches fill courts 1..n then round 2 etc.
     const byRound = {};
     fixtures.forEach(f => {
       const r = f.round || 1;
@@ -1011,9 +1077,8 @@ function roundRobin(list, groupKey){
   return out;
 }
 
-/* ---------- Improved cross-club round-robin with overload-minimizing scheduling ---------- */
+/* Cross-club generator (minimizes overlaps) */
 function crossClubRoundRobin(list){
-  // bucket teams by club
   const byClub = {};
   list.forEach(t => {
     const c = (t.club || 'Unassigned').trim() || 'Unassigned';
@@ -1036,7 +1101,6 @@ function crossClubRoundRobin(list){
       while (aTeams.length < m) aTeams.push(makeBye());
       while (bTeams.length < m) bTeams.push(makeBye());
 
-      // create bipartite full set (every team A vs every team B)
       for (let aa = 0; aa < aTeams.length; aa++){
         for (let bb = 0; bb < bTeams.length; bb++){
           const a = aTeams[aa], b = bTeams[bb];
@@ -1050,7 +1114,6 @@ function crossClubRoundRobin(list){
 
   if (matches.length === 0) return [];
 
-  // degree per team
   const deg = {};
   matches.forEach(m => {
     if (!m.t1 || !m.t2) return;
@@ -1058,7 +1121,6 @@ function crossClubRoundRobin(list){
     deg[m.t2.id] = (deg[m.t2.id] || 0) + 1;
   });
 
-  // sort by combined degree descending (heavier matches first)
   matches.sort((A,B) => {
     const aScore = (deg[A.t1.id]||0) + (deg[A.t2.id]||0);
     const bScore = (deg[B.t1.id]||0) + (deg[B.t2.id]||0);
@@ -1066,7 +1128,6 @@ function crossClubRoundRobin(list){
     return String(A.t1.id).localeCompare(String(B.t1.id)) || String(A.t2.id).localeCompare(String(B.t2.id));
   });
 
-  // greedy allocate to rounds ensuring minimal conflict in same round
   const rounds = [];
   for (const m of matches){
     const id1 = m.t1.id, id2 = m.t2.id;
@@ -1107,34 +1168,32 @@ function crossClubRoundRobin(list){
   return out;
 }
 
-/**
- * allocateCourtsBalanced(fixtures, numCourts)
- * - fixtures: array of { id, matchNum, group, t1, t2, round }
- * - returns new array with .court assigned (1..numCourts)
- *
- * Heuristic:
- * - track count of times each team played on each court
- * - for each fixture (sorted by round then matchNum) pick court minimizing combined usage
- */
+/* Balanced court allocator (improved): minimize repeated-court advantage */
 function allocateCourtsBalanced(fixtures, numCourts) {
   const out = fixtures.map(f => ({ ...f }));
-
   const teamCourtCounts = {};
+  const lastCourtForTeam = {};
+  const globalCourtCounts = new Array(numCourts).fill(0);
+
   function ensureTeam(t){
     if (!t || !t.id) return;
     if (!teamCourtCounts[t.id]) {
       teamCourtCounts[t.id] = new Array(numCourts).fill(0);
+      lastCourtForTeam[t.id] = null;
     }
   }
   out.forEach(f => { ensureTeam(f.t1); ensureTeam(f.t2); });
 
-  // sort by round (undefined -> large) then matchNum
+  // sort by round then matchNum to keep round grouping
   out.sort((a,b) => {
     const ra = (typeof a.round === 'number') ? a.round : 9999;
     const rb = (typeof b.round === 'number') ? b.round : 9999;
     if (ra !== rb) return ra - rb;
     return (a.matchNum || 0) - (b.matchNum || 0);
   });
+
+  // rotation base to avoid consistently favoring court 1
+  let rotationIndex = 0;
 
   for (const f of out) {
     const tid1 = f.t1 && f.t1.id ? f.t1.id : null;
@@ -1148,31 +1207,40 @@ function allocateCourtsBalanced(fixtures, numCourts) {
     for (let c = 0; c < numCourts; c++) {
       const c1 = tid1 ? teamCourtCounts[tid1][c] : 0;
       const c2 = tid2 ? teamCourtCounts[tid2][c] : 0;
-      const score = c1 + c2;
-      if (score < bestScore || (score === bestScore && c < bestCourt)) {
-        bestScore = score;
+      const lastPenalty = ((tid1 && lastCourtForTeam[tid1] === c) || (tid2 && lastCourtForTeam[tid2] === c)) ? 4 : 0;
+      // combine local usage + small global usage factor to prefer spreading
+      const score = (c1 + c2) + lastPenalty + (globalCourtCounts[c] * 0.12);
+      // prefer courts rotated to avoid always picking lower index
+      const rotatedScore = score + ((c + rotationIndex) % numCourts) * 0.001;
+      if (rotatedScore < bestScore || (Math.abs(rotatedScore - bestScore) < 1e-6 && c < bestCourt)) {
+        bestScore = rotatedScore;
         bestCourt = c;
       }
     }
 
+    // assign
     f.court = bestCourt + 1;
+    rotationIndex = (rotationIndex + 1) % numCourts;
 
-    if (tid1) teamCourtCounts[tid1][bestCourt] += 1;
-    if (tid2) teamCourtCounts[tid2][bestCourt] += 1;
+    if (tid1) { teamCourtCounts[tid1][bestCourt] += 1; lastCourtForTeam[tid1] = bestCourt; }
+    if (tid2) { teamCourtCounts[tid2][bestCourt] += 1; lastCourtForTeam[tid2] = bestCourt; }
+    globalCourtCounts[bestCourt] += 1;
   }
 
+  // restore original order by matchNum
   out.sort((a,b) => (a.matchNum||0) - (b.matchNum||0));
   return out;
 }
 
+/* ---------- Render Fixtures ---------- */
 function renderFixtures(){
   const grid = $('fixturesGrid'); grid.innerHTML = '';
   fixtures.forEach(m=>{
     const card = document.createElement('div'); card.className='match-card';
     const groupLabel = (m.group === 'all' ? 'All' : (m.group === 'club' ? 'Across Clubs' : m.group));
     const roundLabel = m.round ? `Round ${m.round} • ` : '';
-    const p1 = (m.t1 && m.t1.players && m.t1.players.length) ? escapeHtml((m.t1.players||[]).join(' & ')) : '';
-    const p2 = (m.t2 && m.t2.players && m.t2.players.length) ? escapeHtml((m.t2.players||[]).join(' & ')) : '';
+    const p1 = (m.t1 && m.t1.players && m.t1.players.length) ? (m.t1.players.map(playerDisplay).join(' & ')) : '';
+    const p2 = (m.t2 && m.t2.players && m.t2.players.length) ? (m.t2.players.map(playerDisplay).join(' & ')) : '';
     card.innerHTML = `
       <div class="match-title">${roundLabel}Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1264,7 +1332,8 @@ function renderRankings(){
     html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">${title}</div>`;
     html += `<div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Club</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
     arr.forEach(r => {
-      html += `<tr><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml((r.players||[]).join(' & '))}</td><td>${escapeHtml(r.club||'')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
+      const players = (r.players||[]).map(playerDisplay).join(' & ');
+      html += `<tr><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${players}</td><td>${escapeHtml(r.club||'')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
     });
     html += `</tbody></table></div></div>`;
   });
@@ -1326,8 +1395,8 @@ function renderQuarterfinals(){
     const matchCard = document.createElement('div'); matchCard.className = 'match-card'; matchCard.style.padding='10px';
     const aName = (m.a && m.a.name) || 'Unknown';
     const bName = (m.b && m.b.name) || 'Unknown';
-    const aPlayers = (m.a && m.a.players && m.a.players.length) ? escapeHtml((m.a.players||[]).join(' & ')) : '';
-    const bPlayers = (m.b && m.b.players && m.b.players.length) ? escapeHtml((m.b.players||[]).join(' & ')) : '';
+    const aPlayers = (m.a && m.a.players && m.a.players.length) ? (m.a.players.map(playerDisplay).join(' & ')) : '';
+    const bPlayers = (m.b && m.b.players && m.b.players.length) ? (m.b.players.map(playerDisplay).join(' & ')) : '';
     matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
@@ -1389,8 +1458,8 @@ function renderSemifinals(){
     const matchCard = document.createElement('div'); matchCard.className = 'match-card'; matchCard.style.padding='10px';
     const aName = (match.a && match.a.name) || 'Unknown';
     const bName = (match.b && match.b.name) || 'Unknown';
-    const aPlayers = (match.a && match.a.players && match.a.players.length) ? escapeHtml((match.a.players||[]).join(' & ')) : '';
-    const bPlayers = (match.b && match.b.players && match.b.players.length) ? escapeHtml((match.b.players||[]).join(' & ')) : '';
+    const aPlayers = (match.a && match.a.players && match.a.players.length) ? (match.a.players.map(playerDisplay).join(' & ')) : '';
+    const bPlayers = (match.b && match.b.players && match.b.players.length) ? (match.b.players.map(playerDisplay).join(' & ')) : '';
     matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${escapeHtml(match.name)}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
@@ -1448,8 +1517,8 @@ function renderFinals(){
     const matchCardF = document.createElement('div'); matchCardF.className='match-card'; matchCardF.style.padding='10px';
     const aName = (f.a && f.a.name) || 'Unknown';
     const bName = (f.b && f.b.name) || 'Unknown';
-    const aPlayers = (f.a && f.a.players && f.a.players.length) ? escapeHtml((f.a.players||[]).join(' & ')) : '';
-    const bPlayers = (f.b && f.b.players && f.b.players.length) ? escapeHtml((f.b.players||[]).join(' & ')) : '';
+    const aPlayers = (f.a && f.a.players && f.a.players.length) ? (f.a.players.map(playerDisplay).join(' & ')) : '';
+    const bPlayers = (f.b && f.b.players && f.b.players.length) ? (f.b.players.map(playerDisplay).join(' & ')) : '';
     matchCardF.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Final</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
@@ -1470,8 +1539,8 @@ function renderFinals(){
     const matchCardT = document.createElement('div'); matchCardT.className='match-card'; matchCardT.style.padding='10px';
     const aName = (t.a && t.a.name) || 'Unknown';
     const bName = (t.b && t.b.name) || 'Unknown';
-    const aPlayers = (t.a && t.a.players && t.a.players.length) ? escapeHtml((t.a.players||[]).join(' & ')) : '';
-    const bPlayers = (t.b && t.b.players && t.b.players.length) ? escapeHtml((t.b.players||[]).join(' & ')) : '';
+    const aPlayers = (t.a && t.a.players && t.a.players.length) ? (t.a.players.map(playerDisplay).join(' & ')) : '';
+    const bPlayers = (t.b && t.b.players && t.b.players.length) ? (t.b.players.map(playerDisplay).join(' & ')) : '';
     matchCardT.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">3rd Place</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="team-label">${escapeHtml(aName)}<div class="team-players">${aPlayers}</div></div>
@@ -1533,7 +1602,8 @@ function exportRankingsCSV(){
   const rows=[['Group','Rank','ID','Name','Players','Club','MatchesWon','PtsWon','PtsLost','Diff']];
   Object.keys(rankings).forEach(g=>{
     (rankings[g]||[]).forEach(r=>{
-      rows.push([g,String(r.rank||''),String(r.id||''),String(r.name||'').replace(/"/g,'""'),String((r.players||[]).join(' & ')).replace(/"/g,'""'),String(r.club||'').replace(/"/g,'""'),String(r.matchesWon||0),String(r.ptsWon||0),String(r.ptsLost||0),String(r.diff||0)]);
+      const playersCSV = (r.players||[]).map(p => (typeof p === 'string') ? p : `${p.name}${p.dupr ? ' ['+p.dupr+']' : ''}`).join(' & ');
+      rows.push([g,String(r.rank||''),String(r.id||''),String(r.name||'').replace(/"/g,'""'),String(playersCSV).replace(/"/g,'""'),String(r.club||'').replace(/"/g,'""'),String(r.matchesWon||0),String(r.ptsWon||0),String(r.ptsLost||0),String(r.diff||0)]);
     });
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
@@ -1550,7 +1620,8 @@ function buildTeamsHtml(){
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
   teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
   teams.forEach(t => {
-    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml((t.players||[]).join(', '))}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.club||'')}</td></tr>`;
+    const players = (t.players||[]).map(p => (typeof p === 'string') ? p : `${escapeHtml(p.name)}${p.dupr ? ' ['+escapeHtml(p.dupr)+']' : ''}`).join(', ');
+    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${players}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.club||'')}</td></tr>`;
   });
   teamsHtml += '</tbody></table>';
   return teamsHtml;
@@ -1564,7 +1635,8 @@ function buildRankHtml(){
       rankHtml += `<h4>${k==='all' ? 'Overall' : 'Group ' + k}</h4>`;
       rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
       (rankings[k]||[]).forEach(r=>{
-        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}<div style="font-size:11px;color:#667085">${escapeHtml((r.players||[]).join(' & '))}</div></td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.club||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
+        const players = (r.players||[]).map(p => (typeof p === 'string') ? p : `${escapeHtml(p.name)}${p.dupr ? ' ['+escapeHtml(p.dupr)+']' : ''}`).join(' & ');
+        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}<div style="font-size:11px;color:#667085">${players}</div></td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.club||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
       });
       rankHtml += '</tbody></table>';
     });
@@ -1586,8 +1658,8 @@ function buildScheduleHtml(){
       <thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Round</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Match</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Court</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team A (Players)</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team B (Players)</th></tr></thead><tbody>`;
     sorted.forEach(m=>{
       const rlabel = m.round ? `R${m.round}` : '';
-      const t1players = (m.t1 && m.t1.players && m.t1.players.length) ? (m.t1.players.join(' & ')) : '';
-      const t2players = (m.t2 && m.t2.players && m.t2.players.length) ? (m.t2.players.join(' & ')) : '';
+      const t1players = (m.t1 && m.t1.players && m.t1.players.length) ? (m.t1.players.map(p => (p.dupr ? `${p.name} [${p.dupr}]` : p.name)).join(' & ')) : '';
+      const t2players = (m.t2 && m.t2.players && m.t2.players.length) ? (m.t2.players.map(p => (p.dupr ? `${p.name} [${p.dupr}]` : p.name)).join(' & ')) : '';
       scheduleHtml += `<tr>
         <td style="padding:6px;border-bottom:1px solid #eee;">${rlabel}</td>
         <td style="padding:6px;border-bottom:1px solid #eee;">${m.matchNum}</td>
@@ -1678,6 +1750,7 @@ function resetAll(){
   $('gameType').value='doubles'; $('numTeams').value=8; $('numCourts').value=2; $('numGroups').value=2;
   $('courtAlloc').value='roundwise';
   updateQualifierDefaults(); if ($('enableQF')) $('enableQF').checked=false; $('rrType').value='within';
+  $('enableDUPR').checked = false;
   onRRTypeChange();
   setActiveTournamentId(null);
   renderTournamentInfo();
@@ -1721,7 +1794,6 @@ function bindUI(){
   if (manageBtn) {
     manageBtn.setAttribute('type','button');
     try {
-      // replace with a fresh node to avoid duplicate handlers in some environments
       const fresh = manageBtn.cloneNode(true);
       manageBtn.parentNode.replaceChild(fresh, manageBtn);
       fresh.addEventListener('click', (ev) => {
@@ -1730,7 +1802,6 @@ function bindUI(){
         openClubDialog();
       });
     } catch (e){
-      // fallback: attach to existing
       manageBtn.addEventListener('click', (ev) => { console.log('Manage Clubs clicked (fallback)'); showToast('Opening Manage Clubs…','success'); openClubDialog(); });
     }
   }
@@ -1753,9 +1824,6 @@ function bindUI(){
 function escapeHtml(str){
   if (!str && str !== '') return '';
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function escapeHtmlAttr(str){
-  return (str||'').replace(/"/g,'&quot;');
 }
 </script>
 </body>
