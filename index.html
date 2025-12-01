@@ -347,6 +347,46 @@
     /* reduce vertical padding inside match cards moderately */
     .match-card { padding:10px; }
   }
+
+  /* ---------- DESKTOP ALIGNMENT FIXES (applied after existing styles) ---------- */
+  /* Keep checkboxes compact on medium+ screens so they don't expand like inputs */
+  @media (min-width:429px) {
+    .form-item.checkbox-row {
+      flex: 0 0 180px;      /* fixed-ish width for the checkbox block */
+      min-width: 160px;     /* prevents it from collapsing too small */
+      align-items: center;
+      justify-content: flex-start;
+      margin-top: 0;
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Ensure checkbox label sits to the right and uses muted color */
+    .form-item.checkbox-row label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    /* Make the qualifiers select align with the other compact inputs */
+    .form-item > select,
+    .form-item > input[type="number"],
+    .form-item > input[type="text"] {
+      max-width: 220px;
+    }
+
+    /* If any native <select> is visible (not yet transformed), ensure it matches dark theme */
+    select {
+      background: rgba(255,255,255,0.04) !important;
+      color: var(--card-text) !important;
+      border: 1px solid rgba(255,255,255,0.08) !important;
+    }
+
+    /* Slightly reduce label left spacing so rows align visually */
+    .form-row .form-item label { padding-left: 4px; }
+  }
+
 </style>
 </head>
 <body>
@@ -544,13 +584,6 @@ const AUTOSAVE_DELAY = 800;
 const TOAST_DURATION = 3500;
 const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
 const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
-
-/* ---------- Storage helpers (unchanged) ---------- */
-function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
-function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
-function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
-function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
-function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
 
 /* ================== CUSTOM DROPDOWN: transform native <select> into custom UI ================== */
 
