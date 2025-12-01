@@ -171,6 +171,7 @@
               <select id="rrType">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
+                <option value="club">Across Clubs</option>
               </select>
             </div>
 
@@ -384,12 +385,12 @@ function restoreSnapshot(data){
   if (s.rrType) $('rrType').value = s.rrType;
   onGameTypeChange();
 
-  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, isBye: !!t.isBye }));
+  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
   fixtures = (data.fixtures || []).map(f => ({
     id: f.id, matchNum: f.matchNum, court: f.court, group: f.group,
-    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], isBye: f.t1Id === 'bye' },
-    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], isBye: f.t2Id === 'bye' }
+    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], club:'', isBye: f.t1Id && String(f.t1Id).startsWith('bye') },
+    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], club:'', isBye: f.t2Id && String(f.t2Id).startsWith('bye') }
   }));
 
   showGroupSummary();
@@ -595,9 +596,11 @@ function startEntry(){
     html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
     if (type === 'singles'){
       html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label><input id="pA_${i}" type="text" placeholder="Player name">`;
+      html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
     } else {
       html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
         <div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"></div>`;
+      html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
     }
     html += `</div>`;
   }
@@ -629,11 +632,12 @@ function saveTeams(){
   for (let i=1;i<=n;i++){
     const v1 = ($(`pA_${i}`)?.value || '').trim();
     const v2 = ($(`pB_${i}`)?.value || '').trim();
+    const clubVal = ($(`club_${i}`)?.value || '').trim();
     const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
     const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
     const name = (players.length > 0 && type === 'singles') ? players[0] : defaultName;
     const teamId = generateId('team'); // robust string id
-    teams.push({ id: teamId, name, players, group:null, isBye: false });
+    teams.push({ id: teamId, name, players, group:null, club: clubVal || '', isBye: false });
   }
   assignGroups();
 }
@@ -673,9 +677,9 @@ function showGroupSummary(){
   teams.forEach(t=> groups[t.group-1].push(t));
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
   groups.forEach((g,i)=>{
-    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th></tr></thead><tbody>`;
-    if (g.length===0) html += `<tr><td colspan="2" class="muted">No entries</td></tr>`;
-    else g.forEach(t => html += `<tr><td>${t.name}</td><td>${(t.players||[]).join(' & ')}</td></tr>`);
+    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th><th>Club</th></tr></thead><tbody>`;
+    if (g.length===0) html += `<tr><td colspan="3" class="muted">No entries</td></tr>`;
+    else g.forEach(t => html += `<tr><td>${t.name}</td><td>${(t.players||[]).join(' & ')}</td><td>${t.club || ''}</td></tr>`);
     html += '</tbody></table></div>';
   });
   html += '</div>';
@@ -700,6 +704,8 @@ function generateFixtures(){
   let rawFixtures = [];
   if (rrType === 'across'){
     rawFixtures = roundRobin(teams, 'all');
+  } else if (rrType === 'club'){
+    rawFixtures = crossClubRoundRobin(teams);
   } else {
     const groups = {};
     teams.forEach(t => { if (!groups[t.group]) groups[t.group] = []; groups[t.group].push(t); });
@@ -720,7 +726,6 @@ function generateFixtures(){
 
 function roundRobin(list, groupKey){
   const arr = [...list];
-  // if odd, insert a BYE sentinel that has isBye true and an id 'bye_<n>'
   if (arr.length % 2 !== 0) arr.push({ id: 'bye_' + Math.random().toString(36).slice(2,6), name:'BYE', players:[], isBye:true });
   const n = arr.length;
   const rounds = n-1;
@@ -736,20 +741,48 @@ function roundRobin(list, groupKey){
   return out;
 }
 
+/* ---------- New: Cross-club round robin generator ---------- */
+function crossClubRoundRobin(list){
+  // Expect each team to have .club (string). Use 'Unassigned' if missing.
+  const byClub = {};
+  list.forEach(t => {
+    const c = (t.club || 'Unassigned').trim() || 'Unassigned';
+    if (!byClub[c]) byClub[c] = [];
+    byClub[c].push(t);
+  });
+  const clubs = Object.keys(byClub);
+  const out = [];
+  // For each unordered pair of clubs, generate every pair of teams (cartesian product)
+  for (let i=0;i<clubs.length;i++){
+    for (let j=i+1;j<clubs.length;j++){
+      const ca = clubs[i], cb = clubs[j];
+      const aTeams = byClub[ca], bTeams = byClub[cb];
+      aTeams.forEach(a => {
+        bTeams.forEach(b => {
+          // ensure no BYE vs BYE; our teams shouldn't be BYE here
+          if ((a.name || '') === 'BYE' || (b.name || '') === 'BYE') return;
+          out.push({ group: 'club', t1: a, t2: b });
+        });
+      });
+    }
+  }
+  return out;
+}
+
 function renderFixtures(){
   const grid = $('fixturesGrid'); grid.innerHTML = '';
   fixtures.forEach(m=>{
     const card = document.createElement('div'); card.className='match-card';
-    const groupLabel = (m.group === 'all' ? 'All' : m.group);
+    const groupLabel = (m.group === 'all' ? 'All' : (m.group === 'club' ? 'Across Clubs' : m.group));
     card.innerHTML = `
       <div class="match-title">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${m.t1.name}</div>
+        <div class="team-label">${m.t1.name}${m.t1.club ? ' • ' + m.t1.club : ''}</div>
         <div style="margin-left:12px"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
       <div style="height:8px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${m.t2.name}</div>
+        <div class="team-label">${m.t2.name}${m.t2.club ? ' • ' + m.t2.club : ''}</div>
         <div style="margin-left:12px"><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
     `;
@@ -786,7 +819,7 @@ function generateRoundRobinRankings(){
   if (!fixtures || fixtures.length === 0) return showToast('No fixtures. Generate fixtures first.','warn');
 
   const stats = {};
-  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0, isBye: !!t.isBye });
+  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, club:t.club || '', matchesWon:0, ptsWon:0, ptsLost:0, diff:0, isBye: !!t.isBye });
 
   for (const m of fixtures){
     const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
@@ -807,7 +840,8 @@ function generateRoundRobinRankings(){
 
   const rrType = $('rrType').value;
   const groupsMap = {};
-  if (rrType === 'across') groupsMap['all'] = Object.values(stats);
+  // For club RR and across-all, show overall ranking
+  if (rrType === 'across' || rrType === 'club') groupsMap['all'] = Object.values(stats);
   else Object.values(stats).forEach(s => { const g = s.group || 1; if (!groupsMap[g]) groupsMap[g]=[]; groupsMap[g].push(s); });
 
   rankings = {};
@@ -832,9 +866,9 @@ function renderRankings(){
     const arr = rankings[key];
     const title = (key === 'all') ? 'Overall Ranking (Across All)' : `Group ${key} Ranking`;
     html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">${title}</div>`;
-    html += `<div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
+    html += `<div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Club</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
     arr.forEach(r => {
-      html += `<tr><td>${r.rank}</td><td>${r.name}</td><td>${(r.players||[]).join(' & ')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
+      html += `<tr><td>${r.rank}</td><td>${r.name}</td><td>${(r.players||[]).join(' & ')}</td><td>${r.club||''}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
     });
     html += `</tbody></table></div></div>`;
   });
@@ -849,7 +883,7 @@ function getQualifiedList(){
   const rrType = $('rrType').value;
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
   const qualified = [];
-  if (rrType === 'across'){
+  if (rrType === 'across' || rrType === 'club'){
     const all = rankings['all'] || [];
     const totalWanted = per * numGroups;
     for (let i=0;i<Math.min(all.length, totalWanted); i++) qualified.push(all[i]);
@@ -896,7 +930,6 @@ function renderQuarterfinals(){
   knockout.qf.forEach((m,idx)=>{
     const div = document.createElement('div');
     div.style.marginBottom='8px';
-    // create inner match-card element explicitly for consistency
     const matchCard = document.createElement('div');
     matchCard.className = 'match-card';
     matchCard.style.padding = '10px';
@@ -916,7 +949,6 @@ function renderQuarterfinals(){
   row.appendChild(btn);
   inner.appendChild(row);
 
-  // bind autosave listeners on the inserted inputs
   document.querySelectorAll('#knockoutsInner input.score-input').forEach(inp => inp.addEventListener('input', scheduleAutoSave));
   $('knockoutsCard').style.display = 'block';
 }
@@ -1077,10 +1109,10 @@ function finalizeKnockouts(){
 /* ---------- Export CSV ---------- */
 function exportRankingsCSV(){
   if (!rankings || Object.keys(rankings).length === 0) return showToast('No rankings to export.','warn');
-  const rows=[['Group','Rank','ID','Name','Players','MatchesWon','PtsWon','PtsLost','Diff']];
+  const rows=[['Group','Rank','ID','Name','Players','Club','MatchesWon','PtsWon','PtsLost','Diff']];
   Object.keys(rankings).forEach(g=>{
     (rankings[g]||[]).forEach(r=>{
-      rows.push([g,String(r.rank||''),String(r.id||''),String(r.name||'').replace(/"/g,'""'),String((r.players||[]).join(' & ')).replace(/"/g,'""'),String(r.matchesWon||0),String(r.ptsWon||0),String(r.ptsLost||0),String(r.diff||0)]);
+      rows.push([g,String(r.rank||''),String(r.id||''),String(r.name||'').replace(/"/g,'""'),String((r.players||[]).join(' & ')).replace(/"/g,'""'),String(r.club||'').replace(/"/g,'""'),String(r.matchesWon||0),String(r.ptsWon||0),String(r.ptsLost||0),String(r.diff||0)]);
     });
   });
   const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
@@ -1104,9 +1136,9 @@ function exportSummaryPDF(){
 
   // teams & groups
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
-  teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th></tr></thead><tbody>';
+  teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
   teams.forEach(t => {
-    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${t.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${(t.players||[]).join(', ')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td></tr>`;
+    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${t.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${(t.players||[]).join(', ')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.club||''}</td></tr>`;
   });
   teamsHtml += '</tbody></table>';
 
@@ -1116,9 +1148,9 @@ function exportSummaryPDF(){
   else {
     Object.keys(rankings).forEach(k=>{
       rankHtml += `<h4>${k==='all' ? 'Overall' : 'Group ' + k}</h4>`;
-      rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
+      rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
       (rankings[k]||[]).forEach(r=>{
-        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
+        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.club||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
       });
       rankHtml += '</tbody></table>';
     });
