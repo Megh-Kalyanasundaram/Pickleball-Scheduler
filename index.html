@@ -27,6 +27,7 @@
   header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
   .subtitle{color:var(--muted);font-size:12px;margin-top:2px;}
 
+  /* Grid */
   .grid{display:grid;grid-template-columns:1fr 340px;gap:12px;}
   @media (max-width:980px){ .grid{grid-template-columns:1fr;} }
 
@@ -37,7 +38,7 @@
   label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
   input[type="text"], input[type="number"], select {
     width:100%; box-sizing:border-box; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04);
-    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
+    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px; min-height:40px;
   }
 
   #rrType { font-size:12px; }
@@ -51,7 +52,9 @@
   .btn.small { padding:6px 8px; font-size:12px; }
   .btn.block { display:block; width:100%; }
 
-  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:8px; align-items:end; }
+  /* Setup row: ensure consistent vertical alignment and symmetry */
+  .setup-row{ display:grid; grid-template-columns: repeat(7, minmax(90px, 1fr)); gap:12px; align-items:start; }
+  .setup-row > div { display:flex; flex-direction:column; justify-content:flex-start; }
   @media (max-width:1200px){ .setup-row{ grid-template-columns: repeat(5, minmax(90px, 1fr)); } }
   @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
   @media (max-width:720px){ .setup-row{ grid-template-columns: repeat(2, 1fr); } }
@@ -181,9 +184,10 @@
               <label>Court allocation</label>
               <select id="courtAlloc" title="Court allocation">
                 <option value="roundwise" selected>Round-wise</option>
-                <option value="sequential">Sequential</option>
+                <option value="sequential">Sequential (Simple)</option>
+                <option value="balanced">Sequential (Balanced)</option>
               </select>
-              <div class="helper-small">Round-wise groups matches by round across courts. Sequential cycles matches across courts.</div>
+              <div class="helper-small">Round-wise groups matches by round across courts. Sequential cycles matches across courts. Balanced minimizes repeated court use per team.</div>
             </div>
 
             <div>
@@ -209,11 +213,6 @@
                 <option value="4">4</option>
                 <option value="8">8</option>
               </select>
-            </div>
-
-            <div>
-              <label><input id="enableQF" type="checkbox"> Enable QF</label>
-              <div class="muted" style="font-size:11px;" id="qfHelp">QF will only run when total qualifiers ≥ 8 (and QF enabled).</div>
             </div>
           </div>
 
@@ -634,7 +633,7 @@ function onRRTypeChange(){
   }
 }
 
-/* ---------- Club dialog (updated UI behavior) ---------- */
+/* ---------- Club dialog ---------- */
 function openClubDialog(){
   const overlay = document.createElement('div');
   overlay.style.position = 'fixed';
@@ -688,7 +687,6 @@ function openClubDialog(){
   }
   renderClubList();
 
-  // When user clicks + Add, show a small input (mobile friendly)
   addTrigger.onclick = () => {
     addTrigger.style.display = 'none';
     addArea.style.display = 'flex';
@@ -698,7 +696,6 @@ function openClubDialog(){
     const temp = addArea.querySelector('#tempNewClub');
     setTimeout(()=> temp.focus(),120);
 
-    // confirm add either by button or Enter key
     addArea.querySelector('#confirmAddClub').onclick = () => {
       const v = (temp.value||'').trim();
       if (!v) return showToast('Enter club name to add.','warn');
@@ -706,7 +703,6 @@ function openClubDialog(){
       clubs.push(v);
       renderClubList();
       updateClubDropdowns();
-      // autosave immediately
       ensureTournamentExistsOnFirstSave();
       saveActiveTournament(false);
       showToast(`Added club: ${v}`,'success');
@@ -898,14 +894,13 @@ function assignGroups(){
   showGroupSummary();
 }
 
-/* Updated: show group summary by club when Across Clubs selected */
+/* ---------- Show Group Summary ---------- */
 function showGroupSummary(){
   if (!teams || teams.length === 0) return showToast('No participants defined.','warn');
   const rrType = $('rrType').value;
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
 
   if (rrType === 'club'){
-    // Build club -> teams map. Prefer setup clubs order, otherwise use discovered clubs.
     const clubsOrder = (clubs && clubs.length) ? clubs.slice() : Array.from(new Set(teams.map(t=> t.club || 'Unassigned')));
     const byClub = {};
     teams.forEach(t => { const c = (t.club || 'Unassigned') || 'Unassigned'; if (!byClub[c]) byClub[c]=[]; byClub[c].push(t); });
@@ -948,7 +943,7 @@ function generateFixtures(){
   if (!teams || teams.length < 2) return showToast('Please add participants first.','warn');
   const numCourts = Math.max(1, Number($('numCourts').value) || 1);
   const rrType = $('rrType').value;
-  const courtAlloc = $('courtAlloc').value || 'roundwise';
+  const courtAlloc = $('courtAlloc').value;
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
   teams.forEach((t,idx) => { if (!t.group) t.group = (idx % numGroups) + 1; });
 
@@ -963,27 +958,41 @@ function generateFixtures(){
     Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
   }
 
-  fixtures = rawFixtures.map((f, idx) => {
-    let court;
-    if (courtAlloc === 'roundwise' && typeof f.round === 'number') {
-      court = (((f.round - 1) % numCourts) + 1);
-    } else {
-      court = ((idx % numCourts) + 1);
-    }
-    return {
-      id: idx,
-      matchNum: idx+1,
-      court,
-      group: f.group,
-      t1: f.t1,
-      t2: f.t2,
-      round: f.round || null
-    };
-  });
+  // Build fixtures array with placeholder court and then allocate based on chosen allocation strategy
+  fixtures = rawFixtures.map((f, idx) => ({
+    id: idx,
+    matchNum: idx+1,
+    court: null,
+    group: f.group,
+    t1: f.t1,
+    t2: f.t2,
+    round: f.round || null
+  }));
+
+  if (courtAlloc === 'roundwise') {
+    // assign courts by round: round 1 matches fill courts 1..n then round 2 etc.
+    const byRound = {};
+    fixtures.forEach(f => {
+      const r = f.round || 1;
+      if (!byRound[r]) byRound[r] = [];
+      byRound[r].push(f);
+    });
+    Object.keys(byRound).forEach(rk => {
+      const arr = byRound[rk];
+      arr.forEach((m, idx) => {
+        m.court = (idx % numCourts) + 1;
+      });
+    });
+  } else if (courtAlloc === 'balanced') {
+    fixtures = allocateCourtsBalanced(fixtures, numCourts);
+  } else { // sequential simple
+    fixtures.forEach((m, idx) => m.court = (idx % numCourts) + 1);
+  }
 
   renderFixtures();
 }
 
+/* standard round-robin generator (within a list) */
 function roundRobin(list, groupKey){
   const arr = [...list];
   if (arr.length % 2 !== 0) arr.push({ id: generateId('bye'), name:'BYE', players:[], isBye:true });
@@ -1001,7 +1010,7 @@ function roundRobin(list, groupKey){
   return out;
 }
 
-/* ---------- Balanced cross-club round robin (round-aware) ---------- */
+/* ---------- Improved cross-club round-robin with overload-minimizing scheduling ---------- */
 function crossClubRoundRobin(list){
   // bucket teams by club
   const byClub = {};
@@ -1012,44 +1021,146 @@ function crossClubRoundRobin(list){
   });
 
   const clubNames = Object.keys(byClub);
-  const pairRounds = []; // {pairLabel, rounds: [ [match,..], ... ]}
+  const matches = [];
 
   for (let i = 0; i < clubNames.length; i++){
     for (let j = i+1; j < clubNames.length; j++){
       const ca = clubNames[i], cb = clubNames[j];
       const aTeams = byClub[ca].slice();
       const bTeams = byClub[cb].slice();
-      let m = Math.max(aTeams.length, bTeams.length);
-      if (m === 0) continue;
+
+      const m = Math.max(aTeams.length, bTeams.length);
       const makeBye = () => ({ id: generateId('bye'), name:'BYE', players:[], club:'', isBye:true });
 
       while (aTeams.length < m) aTeams.push(makeBye());
       while (bTeams.length < m) bTeams.push(makeBye());
 
-      const rounds = Array.from({length:m}, ()=>[]);
-      for (let r=0;r<m;r++){
-        for (let k=0;k<m;k++){
-          const a = aTeams[k], b = bTeams[(k + r) % m];
+      // create bipartite full set (every team A vs every team B)
+      for (let aa = 0; aa < aTeams.length; aa++){
+        for (let bb = 0; bb < bTeams.length; bb++){
+          const a = aTeams[aa], b = bTeams[bb];
           if (!a || !b) continue;
-          if (a.isBye || b.isBye) continue;
-          // round number is r+1 (per this club-pair)
-          rounds[r].push({ group: 'club', t1: a, t2: b, round: r+1 });
+          if ((a.isBye) && (b.isBye)) continue;
+          matches.push({ group: 'club', t1: a, t2: b });
         }
       }
-      pairRounds.push({ pairLabel: `${ca} vs ${cb}`, rounds });
     }
   }
 
-  // Flatten by interleaving rounds across club-pairs
-  const out = [];
-  const maxRounds = pairRounds.reduce((mx,p) => Math.max(mx, p.rounds.length), 0);
-  for (let r = 0; r < maxRounds; r++){
-    for (let p = 0; p < pairRounds.length; p++){
-      const rounds = pairRounds[p].rounds;
-      if (r >= rounds.length) continue;
-      rounds[r].forEach(m => out.push(m));
+  if (matches.length === 0) return [];
+
+  // degree per team
+  const deg = {};
+  matches.forEach(m => {
+    if (!m.t1 || !m.t2) return;
+    deg[m.t1.id] = (deg[m.t1.id] || 0) + 1;
+    deg[m.t2.id] = (deg[m.t2.id] || 0) + 1;
+  });
+
+  // sort by combined degree descending (heavier matches first)
+  matches.sort((A,B) => {
+    const aScore = (deg[A.t1.id]||0) + (deg[A.t2.id]||0);
+    const bScore = (deg[B.t1.id]||0) + (deg[B.t2.id]||0);
+    if (bScore !== aScore) return bScore - aScore;
+    return String(A.t1.id).localeCompare(String(B.t1.id)) || String(A.t2.id).localeCompare(String(B.t2.id));
+  });
+
+  // greedy allocate to rounds ensuring minimal conflict in same round
+  const rounds = [];
+  for (const m of matches){
+    const id1 = m.t1.id, id2 = m.t2.id;
+    let placed = false;
+    for (let r = 0; r < rounds.length; r++){
+      const rs = rounds[r];
+      if (!rs.teamSet.has(id1) && !rs.teamSet.has(id2)){
+        rs.matches.push(m);
+        rs.teamSet.add(id1);
+        rs.teamSet.add(id2);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed){
+      const rs = { teamSet: new Set([id1, id2]), matches: [m] };
+      rounds.push(rs);
     }
   }
+
+  const out = [];
+  let matchNum = 1;
+  for (let r = 0; r < rounds.length; r++){
+    const roundMatches = rounds[r].matches;
+    for (let k = 0; k < roundMatches.length; k++){
+      const mm = roundMatches[k];
+      out.push({ group: 'club', t1: mm.t1, t2: mm.t2, round: r+1, _allocOrder: matchNum++ });
+    }
+  }
+
+  out.sort((a,b) => {
+    if ((a.round||0) !== (b.round||0)) return (a.round||0) - (b.round||0);
+    return (a._allocOrder||0) - (b._allocOrder||0);
+  });
+
+  out.forEach(o => { delete o._allocOrder; });
+
+  return out;
+}
+
+/**
+ * allocateCourtsBalanced(fixtures, numCourts)
+ * - fixtures: array of { id, matchNum, group, t1, t2, round }
+ * - returns new array with .court assigned (1..numCourts)
+ *
+ * Heuristic:
+ * - track count of times each team played on each court
+ * - for each fixture (sorted by round then matchNum) pick court minimizing combined usage
+ */
+function allocateCourtsBalanced(fixtures, numCourts) {
+  const out = fixtures.map(f => ({ ...f }));
+
+  const teamCourtCounts = {};
+  function ensureTeam(t){
+    if (!t || !t.id) return;
+    if (!teamCourtCounts[t.id]) {
+      teamCourtCounts[t.id] = new Array(numCourts).fill(0);
+    }
+  }
+  out.forEach(f => { ensureTeam(f.t1); ensureTeam(f.t2); });
+
+  // sort by round (undefined -> large) then matchNum
+  out.sort((a,b) => {
+    const ra = (typeof a.round === 'number') ? a.round : 9999;
+    const rb = (typeof b.round === 'number') ? b.round : 9999;
+    if (ra !== rb) return ra - rb;
+    return (a.matchNum || 0) - (b.matchNum || 0);
+  });
+
+  for (const f of out) {
+    const tid1 = f.t1 && f.t1.id ? f.t1.id : null;
+    const tid2 = f.t2 && f.t2.id ? f.t2.id : null;
+    if (tid1) ensureTeam(f.t1);
+    if (tid2) ensureTeam(f.t2);
+
+    let bestCourt = 0;
+    let bestScore = Infinity;
+
+    for (let c = 0; c < numCourts; c++) {
+      const c1 = tid1 ? teamCourtCounts[tid1][c] : 0;
+      const c2 = tid2 ? teamCourtCounts[tid2][c] : 0;
+      const score = c1 + c2;
+      if (score < bestScore || (score === bestScore && c < bestCourt)) {
+        bestScore = score;
+        bestCourt = c;
+      }
+    }
+
+    f.court = bestCourt + 1;
+
+    if (tid1) teamCourtCounts[tid1][bestCourt] += 1;
+    if (tid2) teamCourtCounts[tid2][bestCourt] += 1;
+  }
+
+  out.sort((a,b) => (a.matchNum||0) - (b.matchNum||0));
   return out;
 }
 
@@ -1433,7 +1544,7 @@ function exportRankingsCSV(){
   showToast('Rankings CSV exported.','success');
 }
 
-/* ---------- Export Summary (PDF) with Schedule table ---------- */
+/* ---------- Export Summary & Schedule ---------- */
 function buildTeamsHtml(){
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
   teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
@@ -1522,7 +1633,6 @@ function exportSummaryPDF(){
   setTimeout(()=>{ w.focus(); w.print(); }, 350);
 }
 
-/* Export schedule-only (PDF) and print schedule-only */
 function exportSchedulePDF(){
   const active = getActiveTournament();
   if (!active) return showToast('No active tournament to export.','warn');
