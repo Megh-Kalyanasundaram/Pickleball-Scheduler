@@ -46,7 +46,6 @@
   /* dropdown option visibility patch */
   select { background-color: rgba(255,255,255,0.1); color: var(--card-text); }
   select option { background-color: #102238; color: #e7f4ff; }
-  /* hover/focus styling for options — note: many browsers don't style option :hover; this improves where supported */
   select option:hover, select option:focus { background-color: var(--gold); color:#102238; }
 
   .btn { background:var(--gold); color:#102238; border:none; padding:8px 10px; font-weight:700; border-radius:8px; cursor:pointer; box-shadow:0 6px 12px rgba(20,18,16,0.06); font-size:13px; }
@@ -455,7 +454,6 @@ function saveActiveTournament(manual){
 
 /* ---------- Autosave scheduling ---------- */
 function scheduleAutoSave(){
-  // ensure a tournament exists (creates a timestamp-named tournament on first autosave)
   ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
   if (autosaveTimer) clearTimeout(autosaveTimer);
@@ -591,16 +589,23 @@ function startEntry(){
   const n = clampInt($('numTeams').value, 0);
   if (n < 2) { showToast('Please enter at least 2 participants.','warn'); return; }
   const type = $('gameType').value;
+  const rrType = $('rrType').value;
+  const isClubRR = rrType === 'club';
+
   let html = '';
   for (let i=1;i<=n;i++){
     html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
     if (type === 'singles'){
       html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label><input id="pA_${i}" type="text" placeholder="Player name">`;
-      html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+      if (isClubRR){
+        html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+      }
     } else {
       html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
         <div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"></div>`;
-      html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+      if (isClubRR){
+        html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+      }
     }
     html += `</div>`;
   }
@@ -611,7 +616,6 @@ function startEntry(){
   $('rankingsCard').style.display = 'none';
   updateBanner('Entry');
 
-  // bind dynamic buttons
   $('saveTeamsBtn').onclick = () => {
     saveTeams();
     if (!getActiveTournamentId()){
@@ -636,7 +640,7 @@ function saveTeams(){
     const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
     const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
     const name = (players.length > 0 && type === 'singles') ? players[0] : defaultName;
-    const teamId = generateId('team'); // robust string id
+    const teamId = generateId('team');
     teams.push({ id: teamId, name, players, group:null, club: clubVal || '', isBye: false });
   }
   assignGroups();
@@ -743,7 +747,6 @@ function roundRobin(list, groupKey){
 
 /* ---------- New: Cross-club round robin generator ---------- */
 function crossClubRoundRobin(list){
-  // Expect each team to have .club (string). Use 'Unassigned' if missing.
   const byClub = {};
   list.forEach(t => {
     const c = (t.club || 'Unassigned').trim() || 'Unassigned';
@@ -752,14 +755,12 @@ function crossClubRoundRobin(list){
   });
   const clubs = Object.keys(byClub);
   const out = [];
-  // For each unordered pair of clubs, generate every pair of teams (cartesian product)
   for (let i=0;i<clubs.length;i++){
     for (let j=i+1;j<clubs.length;j++){
       const ca = clubs[i], cb = clubs[j];
       const aTeams = byClub[ca], bTeams = byClub[cb];
       aTeams.forEach(a => {
         bTeams.forEach(b => {
-          // ensure no BYE vs BYE; our teams shouldn't be BYE here
           if ((a.name || '') === 'BYE' || (b.name || '') === 'BYE') return;
           out.push({ group: 'club', t1: a, t2: b });
         });
@@ -789,14 +790,12 @@ function renderFixtures(){
     grid.appendChild(card);
   });
 
-  // attach autosave listeners
   fixtures.forEach(m=>{
     const s1 = $(`s1-${m.id}`), s2 = $(`s2-${m.id}`);
     if (s1) s1.addEventListener('input', scheduleAutoSave);
     if (s2) s2.addEventListener('input', scheduleAutoSave);
   });
 
-  // restore scores from active tournament snapshot
   const active = getActiveTournament();
   if (active && active.snapshot && active.snapshot.fixtureScores){
     const scores = active.snapshot.fixtureScores || {};
@@ -840,7 +839,6 @@ function generateRoundRobinRankings(){
 
   const rrType = $('rrType').value;
   const groupsMap = {};
-  // For club RR and across-all, show overall ranking
   if (rrType === 'across' || rrType === 'club') groupsMap['all'] = Object.values(stats);
   else Object.values(stats).forEach(s => { const g = s.group || 1; if (!groupsMap[g]) groupsMap[g]=[]; groupsMap[g].push(s); });
 
@@ -909,7 +907,7 @@ function proceedToKnockouts(){
   else return showToast('Insufficient qualifiers for knockouts (need at least 4 for semis or 8 for quarters).','warn');
 }
 
-/* Quarterfinals & SF & Finals (patched renderers) */
+/* Quarterfinals & SF & Finals */
 function prepareQuarterfinals(qualifiedList){
   const prepared = qualifiedList.slice(0,8);
   const top8 = prepared;
@@ -924,7 +922,6 @@ function prepareQuarterfinals(qualifiedList){
   updateBanner('Quarterfinals');
 }
 
-// Patched knockout renderers (consistent DOM structure, normalized BYE checks)
 function renderQuarterfinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   knockout.qf.forEach((m,idx)=>{
@@ -1129,12 +1126,10 @@ function exportSummaryPDF(){
   const active = getActiveTournament();
   if (!active) return showToast('No active tournament to export.','warn');
 
-  // build HTML
   const title = active.name || 'Tournament';
   const created = new Date(active.createdAt).toLocaleString();
   const lastSaved = new Date(active.lastSaved || active.createdAt).toLocaleString();
 
-  // teams & groups
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
   teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
   teams.forEach(t => {
@@ -1142,7 +1137,6 @@ function exportSummaryPDF(){
   });
   teamsHtml += '</tbody></table>';
 
-  // rankings
   let rankHtml = '<h3>Rankings</h3>';
   if (!rankings || Object.keys(rankings).length===0) rankHtml += '<div>No rankings generated.</div>';
   else {
@@ -1156,7 +1150,6 @@ function exportSummaryPDF(){
     });
   }
 
-  // knockouts
   let koHtml = '<h3>Knockout Results</h3>';
   if (!knockout || (!knockout.qf && !knockout.sf1 && !knockout.final)) koHtml += '<div>No knockout stage run yet.</div>';
   else {
@@ -1197,8 +1190,7 @@ function exportSummaryPDF(){
   w.document.open();
   w.document.write(page);
   w.document.close();
-  // slight delay to ensure render in some browsers, then print
-  setTimeout(()=>{ w.focus(); w.print(); /* do not auto-close — let user choose Save */ }, 350);
+  setTimeout(()=>{ w.focus(); w.print(); }, 350);
 }
 
 /* ---------- Reset ---------- */
@@ -1246,7 +1238,6 @@ function bindUI(){
   $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = manualSaveFromUI);
   $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
 
-  // back to summary from fixtures
   const backBtn = $('backToSummaryBtn');
   if (backBtn) backBtn.onclick = () => { $('fixturesCard').style.display='none'; $('summaryCard').style.display='block'; updateBanner('Group Summary'); };
 }
