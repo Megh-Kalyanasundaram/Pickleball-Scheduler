@@ -319,7 +319,7 @@ function showToast(message, type = 'success') {
     if (!container) return console.log('Toast:', message);
     const t = document.createElement('div');
     t.className = `toast ${type}`;
-    t.innerHTML = `<div class="accent"></div><div style="flex:1">${message}</div>`;
+    t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
     container.appendChild(t);
     // auto dismiss
     const timeout = setTimeout(() => {
@@ -335,6 +335,7 @@ function showToast(message, type = 'success') {
 
 /* ---------- Basic helpers ---------- */
 function clampInt(v, min) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
+function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
 /* ---------- Tournament store helpers ---------- */
 function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
@@ -383,12 +384,12 @@ function restoreSnapshot(data){
   if (s.rrType) $('rrType').value = s.rrType;
   onGameTypeChange();
 
-  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null }));
+  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
   fixtures = (data.fixtures || []).map(f => ({
     id: f.id, matchNum: f.matchNum, court: f.court, group: f.group,
-    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[] },
-    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[] }
+    t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], isBye: f.t1Id === 'bye' },
+    t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], isBye: f.t2Id === 'bye' }
   }));
 
   showGroupSummary();
@@ -442,7 +443,7 @@ function saveActiveTournament(manual){
     arr[idx].snapshot = snap;
     arr[idx].lastSaved = now;
   } else {
-    arr.unshift({ id, name: id, createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
+    arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
   }
   writeTournamentStore(arr);
   renderLoadControl();
@@ -453,6 +454,8 @@ function saveActiveTournament(manual){
 
 /* ---------- Autosave scheduling ---------- */
 function scheduleAutoSave(){
+  // ensure a tournament exists (creates a timestamp-named tournament on first autosave)
+  ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY);
@@ -629,7 +632,8 @@ function saveTeams(){
     const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
     const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
     const name = (players.length > 0 && type === 'singles') ? players[0] : defaultName;
-    teams.push({ id:i, name, players, group:null });
+    const teamId = generateId('team'); // robust string id
+    teams.push({ id: teamId, name, players, group:null, isBye: false });
   }
   assignGroups();
 }
@@ -716,7 +720,8 @@ function generateFixtures(){
 
 function roundRobin(list, groupKey){
   const arr = [...list];
-  if (arr.length % 2 !== 0) arr.push({ id:null, name:'BYE', players:[] });
+  // if odd, insert a BYE sentinel that has isBye true and an id 'bye_<n>'
+  if (arr.length % 2 !== 0) arr.push({ id: 'bye_' + Math.random().toString(36).slice(2,6), name:'BYE', players:[], isBye:true });
   const n = arr.length;
   const rounds = n-1;
   let order = arr.slice();
@@ -781,7 +786,7 @@ function generateRoundRobinRankings(){
   if (!fixtures || fixtures.length === 0) return showToast('No fixtures. Generate fixtures first.','warn');
 
   const stats = {};
-  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0 });
+  teams.forEach(t => stats[t.id] = { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0, isBye: !!t.isBye });
 
   for (const m of fixtures){
     const s1El = $(`s1-${m.id}`), s2El = $(`s2-${m.id}`);
@@ -870,7 +875,7 @@ function proceedToKnockouts(){
   else return showToast('Insufficient qualifiers for knockouts (need at least 4 for semis or 8 for quarters).','warn');
 }
 
-/* Quarterfinals & SF & Finals (same as baseline but with autosave wiring) */
+/* Quarterfinals & SF & Finals (patched renderers) */
 function prepareQuarterfinals(qualifiedList){
   const prepared = qualifiedList.slice(0,8);
   const top8 = prepared;
@@ -884,19 +889,25 @@ function prepareQuarterfinals(qualifiedList){
   renderQuarterfinals();
   updateBanner('Quarterfinals');
 }
+
+// Patched knockout renderers (consistent DOM structure, normalized BYE checks)
 function renderQuarterfinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   knockout.qf.forEach((m,idx)=>{
-    const div = document.createElement('div'); div.style.marginBottom='8px';
-    const aLabel = m.a.isBye ? 'BYE' : `${m.a.name}`;
-    const bLabel = m.b.isBye ? 'BYE' : `${m.b.name}`;
-    div.innerHTML = `<div class="match-card" style="padding:10px;">
-      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
+    const div = document.createElement('div');
+    div.style.marginBottom='8px';
+    // create inner match-card element explicitly for consistency
+    const matchCard = document.createElement('div');
+    matchCard.className = 'match-card';
+    matchCard.style.padding = '10px';
+    const aLabel = (m.a && m.a.isBye) ? 'BYE' : (m.a && m.a.name) || 'Unknown';
+    const bLabel = (m.b && m.b.isBye) ? 'BYE' : (m.b && m.b.name) || 'Unknown';
+    matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
-    </div>`;
-    inner.appendChild(div.firstChild);
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+    div.appendChild(matchCard);
+    inner.appendChild(div);
   });
 
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='flex-end'; row.style.marginTop='8px';
@@ -905,6 +916,7 @@ function renderQuarterfinals(){
   row.appendChild(btn);
   inner.appendChild(row);
 
+  // bind autosave listeners on the inserted inputs
   document.querySelectorAll('#knockoutsInner input.score-input').forEach(inp => inp.addEventListener('input', scheduleAutoSave));
   $('knockoutsCard').style.display = 'block';
 }
@@ -943,15 +955,17 @@ function renderSemifinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   [knockout.sf1, knockout.sf2].forEach(match=>{
     const div = document.createElement('div'); div.style.marginBottom='8px';
-    const aLabel = match.a.isBye ? 'BYE' : `${match.a.name}`;
-    const bLabel = match.b.isBye ? 'BYE' : `${match.b.name}`;
-    div.innerHTML = `<div class="match-card" style="padding:10px;">
-      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${match.name}</div>
+    const matchCard = document.createElement('div');
+    matchCard.className = 'match-card';
+    matchCard.style.padding = '10px';
+    const aLabel = (match.a && match.a.isBye) ? 'BYE' : (match.a && match.a.name) || 'Unknown';
+    const bLabel = (match.b && match.b.isBye) ? 'BYE' : (match.b && match.b.name) || 'Unknown';
+    matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${match.name}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
-    </div>`;
-    inner.appendChild(div.firstChild);
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+    div.appendChild(matchCard);
+    inner.appendChild(div);
   });
 
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='flex-end'; row.style.marginTop='8px';
@@ -990,31 +1004,33 @@ function prepareDirectFinal(qualified){
 
 function renderFinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
+
   if (knockout.final){
     const f = knockout.final;
     const divF = document.createElement('div'); divF.style.marginBottom='8px';
-    const aLabel = f.a.isBye ? 'BYE' : `${f.a.name}`;
-    const bLabel = f.b.isBye ? 'BYE' : `${f.b.name}`;
-    divF.innerHTML = `<div class="match-card" style="padding:10px;">
-      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Final</div>
+    const matchCardF = document.createElement('div'); matchCardF.className='match-card'; matchCardF.style.padding='10px';
+    const aLabel = (f.a && f.a.isBye) ? 'BYE' : (f.a && f.a.name) || 'Unknown';
+    const bLabel = (f.b && f.b.isBye) ? 'BYE' : (f.b && f.b.name) || 'Unknown';
+    matchCardF.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Final</div>
       <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="FINAL-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
-    </div>`;
-    inner.appendChild(divF.firstChild);
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+    divF.appendChild(matchCardF);
+    inner.appendChild(divF);
   }
+
   if (knockout.third){
     const t = knockout.third;
     const divT = document.createElement('div'); divT.style.marginBottom='8px';
-    const aLabel = t.a.isBye ? 'BYE' : `${t.a.name}`;
-    const bLabel = t.b.isBye ? 'BYE' : `${t.b.name}`;
-    divT.innerHTML = `<div class="match-card" style="padding:10px;">
-      <div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">3rd Place</div>
+    const matchCardT = document.createElement('div'); matchCardT.className='match-card'; matchCardT.style.padding='10px';
+    const aLabel = (t.a && t.a.isBye) ? 'BYE' : (t.a && t.a.name) || 'Unknown';
+    const bLabel = (t.b && t.b.isBye) ? 'BYE' : (t.b && t.b.name) || 'Unknown';
+    matchCardT.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">3rd Place</div>
       <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="THIRD-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score"></div>
-    </div>`;
-    inner.appendChild(divT.firstChild);
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+    divT.appendChild(matchCardT);
+    inner.appendChild(divT);
   }
 
   const doneRow = document.createElement('div'); doneRow.style.display='flex'; doneRow.style.justifyContent='flex-end'; doneRow.style.marginTop='8px';
@@ -1172,6 +1188,7 @@ function resetAll(){
 
 /* ---------- Render knockout from snapshot ---------- */
 function renderAppropriateKnockoutView(){
+  if (!knockout) { $('knockoutsCard').style.display = 'none'; return; }
   if (knockout.qf) renderQuarterfinals();
   else if (knockout.sf1 && knockout.sf2) renderSemifinals();
   else if (knockout.final) renderFinals();
@@ -1196,6 +1213,10 @@ function bindUI(){
   $('manualSaveBtn') && ($('manualSaveBtn').onclick = manualSaveFromUI);
   $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = manualSaveFromUI);
   $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
+
+  // back to summary from fixtures
+  const backBtn = $('backToSummaryBtn');
+  if (backBtn) backBtn.onclick = () => { $('fixturesCard').style.display='none'; $('summaryCard').style.display='block'; updateBanner('Group Summary'); };
 }
 
 /* ---------- Init ---------- */
