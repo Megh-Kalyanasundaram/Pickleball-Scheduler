@@ -126,6 +126,14 @@
 
   .toast.fadeOut { animation: toastOut 220ms ease forwards; }
 
+  /* small helper text under RR type */
+  .helper-small { font-size:11px;color:var(--muted); margin-top:4px; }
+
+  /* small inline add club button */
+  .inline-add { margin-left:8px; padding:6px 8px; border-radius:8px; background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; font-weight:700; }
+
+  .badge-unassigned { color:#b00020; font-weight:700; }
+
   @media print{ .banner{display:none;} .toast-container{display:none;} }
 </style>
 </head>
@@ -167,11 +175,12 @@
 
             <div>
               <label>Round-Robin Type</label>
-              <select id="rrType">
+              <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
                 <option value="club">Across Clubs</option>
               </select>
+              <div id="rrHelper" class="helper-small" style="display:none;">Across Clubs → add clubs in Setup; teams select club during Entry (or use + to add inline).</div>
             </div>
 
             <div>
@@ -188,6 +197,11 @@
               <label><input id="enableQF" type="checkbox"> Enable QF</label>
               <div class="muted" style="font-size:11px;" id="qfHelp">QF will only run when total qualifiers ≥ 8 (and QF enabled).</div>
             </div>
+          </div>
+
+          <!-- Manage clubs control (hidden unless rrType === 'club') -->
+          <div style="margin-top:8px; display:flex;justify-content:flex-end; gap:8px;">
+            <button id="manageClubsBtn" class="btn small ghost" style="display:none;">Manage Clubs</button>
           </div>
 
           <div class="action-row" style="margin-top:8px;align-items:center;">
@@ -300,6 +314,7 @@ let teams = [];
 let fixtures = [];
 let rankings = {};
 let knockout = {};
+let clubs = []; // Setup-level clubs list (for Across Clubs mode)
 let autosaveTimer = null;
 const AUTOSAVE_DELAY = 800; // ms
 const TOAST_DURATION = 3500; // 3.5s
@@ -321,12 +336,10 @@ function showToast(message, type = 'success') {
     t.className = `toast ${type}`;
     t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
     container.appendChild(t);
-    // auto dismiss
     const timeout = setTimeout(() => {
       t.classList.add('fadeOut');
       setTimeout(() => t.remove(), 260);
     }, TOAST_DURATION);
-    // allow click to dismiss
     t.addEventListener('click', () => { clearTimeout(timeout); t.classList.add('fadeOut'); setTimeout(()=>t.remove(),220); });
   } catch (e) {
     console.warn('Toast error', e);
@@ -353,7 +366,8 @@ function snapshotCurrentState(){
     numGroups: Number($('numGroups').value) || 1,
     qualPerGroup: Number($('qualPerGroup').value) || 1,
     enableQF: !!$('enableQF').checked,
-    rrType: $('rrType').value
+    rrType: $('rrType').value,
+    clubs: clubs.slice()
   };
   const teamsCopy = teams.map(t => ({ ...t }));
   const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id }));
@@ -382,7 +396,9 @@ function restoreSnapshot(data){
   if (s.qualPerGroup) $('qualPerGroup').value = s.qualPerGroup;
   if (typeof s.enableQF !== 'undefined') $('enableQF').checked = !!s.enableQF;
   if (s.rrType) $('rrType').value = s.rrType;
+  clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
   onGameTypeChange();
+  onRRTypeChange();
 
   teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
@@ -585,6 +601,134 @@ function onGameTypeChange(){
   $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
 }
 
+function onRRTypeChange(){
+  const rr = $('rrType').value;
+  const manageBtn = $('manageClubsBtn');
+  const helper = $('rrHelper');
+  if (rr === 'club'){
+    if (manageBtn) manageBtn.style.display = 'inline-block';
+    if (helper) helper.style.display = 'block';
+  } else {
+    if (manageBtn) manageBtn.style.display = 'none';
+    if (helper) helper.style.display = 'none';
+  }
+}
+
+/* ---------- Club management dialog ---------- */
+function openClubDialog(){
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.left = 0; overlay.style.top = 0; overlay.style.right = 0; overlay.style.bottom = 0;
+  overlay.style.background = 'rgba(2,6,15,0.45)';
+  overlay.style.display = 'flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center'; overlay.style.zIndex=9999;
+
+  const box = document.createElement('div');
+  box.style.width='min(640px,96%)';
+  box.style.maxHeight='80%';
+  box.style.overflow='auto';
+  box.style.background='var(--card-bg)';
+  box.style.borderRadius='10px';
+  box.style.padding='12px';
+  box.style.boxShadow='0 10px 40px rgba(2,6,23,0.6)';
+
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-weight:800;color:#eaf4ff">Manage Clubs</div>
+      <div style="display:flex;gap:8px;"><button id="closeClubDialog" class="btn ghost small">Close</button><button id="saveClubsBtn" class="btn small">Save</button></div>
+    </div>
+    <div style="margin-bottom:8px;" class="muted">Add club names once here. During Entry you'll select a club from a dropdown for each team.</div>
+    <div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;"><input id="newClubName" type="text" placeholder="New club name" style="flex:1"/><button id="addClubBtn" class="btn small">Add</button></div>`;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const clubList = box.querySelector('#clubList');
+
+  function renderClubList(){
+    clubList.innerHTML = '';
+    (clubs || []).forEach((c, idx) => {
+      const row = document.createElement('div');
+      row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
+      row.innerHTML = `<div style="flex:1;color:#eaf4ff;font-weight:700;">${escapeHtml(c)}</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn ghost small" data-del="${idx}">Delete</button>
+          <button class="btn small" data-up="${idx}">↑</button>
+          <button class="btn small" data-down="${idx}">↓</button>
+        </div>`;
+      clubList.appendChild(row);
+    });
+  }
+  renderClubList();
+
+  box.querySelector('#addClubBtn').onclick = () => {
+    const v = (box.querySelector('#newClubName').value || '').trim();
+    if (!v) return showToast('Enter club name to add.','warn');
+    if (clubs.includes(v)) return showToast('Club already exists.','warn');
+    clubs.push(v);
+    box.querySelector('#newClubName').value = '';
+    renderClubList();
+    updateClubDropdowns(); // refresh entry dropdowns immediately if open
+  };
+
+  box.addEventListener('click', (ev) => {
+    const del = ev.target.closest('button[data-del]');
+    const up = ev.target.closest('button[data-up]');
+    const down = ev.target.closest('button[data-down]');
+    if (del){
+      const i = Number(del.getAttribute('data-del'));
+      clubs.splice(i,1);
+      renderClubList();
+      updateClubDropdowns();
+    } else if (up){
+      const i = Number(up.getAttribute('data-up'));
+      if (i<=0) return;
+      const tmp = clubs[i-1]; clubs[i-1]=clubs[i]; clubs[i]=tmp;
+      renderClubList();
+      updateClubDropdowns();
+    } else if (down){
+      const i = Number(down.getAttribute('data-down'));
+      if (i>=clubs.length-1) return;
+      const tmp = clubs[i+1]; clubs[i+1]=clubs[i]; clubs[i]=tmp;
+      renderClubList();
+      updateClubDropdowns();
+    }
+  });
+
+  box.querySelector('#saveClubsBtn').onclick = () => {
+    // ensure persistence by saving snapshot (create tournament if needed)
+    ensureTournamentExistsOnFirstSave();
+    saveActiveTournament(true);
+    showToast('Clubs saved.','success');
+    document.body.removeChild(overlay);
+  };
+  box.querySelector('#closeClubDialog').onclick = () => document.body.removeChild(overlay);
+}
+
+/* ---------- Utility: update all club selects in Entry ---------- */
+function updateClubDropdowns(){
+  // update selects with id starting club_ inside entryInner
+  const selects = document.querySelectorAll('#entryInner select[id^="club_"]');
+  selects.forEach(sel => {
+    const current = sel.value;
+    // remove existing options then re-add from clubs array
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+    // add blank/unassigned option
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.innerText = '--';
+    sel.appendChild(blank);
+    clubs.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c;
+      opt.innerText = c;
+      sel.appendChild(opt);
+    });
+    // restore previous selection if possible
+    if (current && Array.from(sel.options).find(o => o.value === current)) sel.value = current;
+  });
+}
+
+/* ---------- Entry UI ---------- */
 function startEntry(){
   const n = clampInt($('numTeams').value, 0);
   if (n < 2) { showToast('Please enter at least 2 participants.','warn'); return; }
@@ -592,25 +736,41 @@ function startEntry(){
   const rrType = $('rrType').value;
   const isClubRR = rrType === 'club';
 
+  // If club mode and no clubs defined, prompt user to add clubs first
+  if (isClubRR && (!clubs || clubs.length === 0)){
+    showToast('Please add clubs first (Manage Clubs).','warn');
+    openClubDialog();
+    return;
+  }
+
   let html = '';
   for (let i=1;i<=n;i++){
     html += `<div style="margin-bottom:8px; background:rgba(255,255,255,0.02); padding:8px; border-radius:8px;">`;
     if (type === 'singles'){
       html += `<label style="font-size:12px;color:var(--muted)">Player ${i} (optional)</label><input id="pA_${i}" type="text" placeholder="Player name">`;
       if (isClubRR){
-        html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+        html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+            <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
+            <button class="inline-add" type="button" onclick="addClubInline(${i})">+ Add</button>
+          </div>`;
       }
     } else {
       html += `<label style="font-size:12px;color:var(--muted)">Team ${i} — Players (optional)</label>
         <div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player A" style="flex:1"><input id="pB_${i}" type="text" placeholder="Player B" style="flex:1"></div>`;
       if (isClubRR){
-        html += `<div style="margin-top:6px;"><label style="font-size:12px;color:var(--muted)">Club (optional)</label><input id="club_${i}" type="text" placeholder="Club name"></div>`;
+        html += `<div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+            <div style="flex:1;"><label style="font-size:12px;color:var(--muted)">Club (choose)</label><select id="club_${i}"></select></div>
+            <button class="inline-add" type="button" onclick="addClubInline(${i})">+ Add</button>
+          </div>`;
       }
     }
     html += `</div>`;
   }
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" id="saveTeamsBtn">Save</button><button class="btn ghost" id="cancelEntryBtn">Cancel</button></div>`;
   $('entryInner').innerHTML = html;
+  // populate club dropdowns now
+  updateClubDropdowns();
+
   $('entryCard').style.display = 'block';
   $('fixturesCard').style.display = 'none';
   $('rankingsCard').style.display = 'none';
@@ -629,14 +789,35 @@ function startEntry(){
 
 function cancelEntry(){ $('entryInner').innerHTML=''; $('entryCard').style.display='none'; updateBanner('Round Robin'); }
 
+function addClubInline(index){
+  const name = (prompt('Enter new club name:') || '').trim();
+  if (!name) return showToast('No name entered.','warn');
+  if (clubs.includes(name)) {
+    showToast('Club already exists.','warn');
+    // set selection if dropdown present
+    const sel = $(`club_${index}`); if (sel) sel.value = name;
+    return;
+  }
+  clubs.push(name);
+  updateClubDropdowns();
+  // set the newly added club on the originating dropdown if present
+  const sel = $(`club_${index}`); if (sel) sel.value = name;
+  // persist immediately
+  ensureTournamentExistsOnFirstSave();
+  saveActiveTournament(true);
+  showToast(`Added club: ${name}`,'success');
+}
+
 function saveTeams(){
   const n = clampInt($('numTeams').value, 0);
   const type = $('gameType').value;
+  const rrType = $('rrType').value;
+  const isClubRR = rrType === 'club';
   teams = [];
   for (let i=1;i<=n;i++){
     const v1 = ($(`pA_${i}`)?.value || '').trim();
     const v2 = ($(`pB_${i}`)?.value || '').trim();
-    const clubVal = ($(`club_${i}`)?.value || '').trim();
+    const clubVal = isClubRR ? (($(`club_${i}`)?.value || '').trim()) : '';
     const defaultName = (type === 'singles') ? `Player ${i}` : `Team ${i}`;
     const players = (type === 'singles') ? (v1 ? [v1] : []) : [v1, v2].filter(Boolean);
     const name = (players.length > 0 && type === 'singles') ? players[0] : defaultName;
@@ -683,7 +864,10 @@ function showGroupSummary(){
   groups.forEach((g,i)=>{
     html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th><th>Club</th></tr></thead><tbody>`;
     if (g.length===0) html += `<tr><td colspan="3" class="muted">No entries</td></tr>`;
-    else g.forEach(t => html += `<tr><td>${t.name}</td><td>${(t.players||[]).join(' & ')}</td><td>${t.club || ''}</td></tr>`);
+    else g.forEach(t => {
+      const clubCell = t.club ? escapeHtml(t.club) : `<span class="badge-unassigned">Unassigned</span>`;
+      html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td><td>${clubCell}</td></tr>`;
+    });
     html += '</tbody></table></div>';
   });
   html += '</div>';
@@ -745,7 +929,7 @@ function roundRobin(list, groupKey){
   return out;
 }
 
-/* ---------- New: Cross-club round robin generator ---------- */
+/* ---------- Cross-club round robin generator (uses setup clubs and team.club) ---------- */
 function crossClubRoundRobin(list){
   const byClub = {};
   list.forEach(t => {
@@ -753,11 +937,11 @@ function crossClubRoundRobin(list){
     if (!byClub[c]) byClub[c] = [];
     byClub[c].push(t);
   });
-  const clubs = Object.keys(byClub);
+  const clubsList = Object.keys(byClub);
   const out = [];
-  for (let i=0;i<clubs.length;i++){
-    for (let j=i+1;j<clubs.length;j++){
-      const ca = clubs[i], cb = clubs[j];
+  for (let i=0;i<clubsList.length;i++){
+    for (let j=i+1;j<clubsList.length;j++){
+      const ca = clubsList[i], cb = clubsList[j];
       const aTeams = byClub[ca], bTeams = byClub[cb];
       aTeams.forEach(a => {
         bTeams.forEach(b => {
@@ -778,12 +962,12 @@ function renderFixtures(){
     card.innerHTML = `
       <div class="match-title">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${m.t1.name}${m.t1.club ? ' • ' + m.t1.club : ''}</div>
+        <div class="team-label">${escapeHtml(m.t1.name)}${m.t1.club ? ' • ' + escapeHtml(m.t1.club) : ''}</div>
         <div style="margin-left:12px"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
       <div style="height:8px"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div class="team-label">${m.t2.name}${m.t2.club ? ' • ' + m.t2.club : ''}</div>
+        <div class="team-label">${escapeHtml(m.t2.name)}${m.t2.club ? ' • ' + escapeHtml(m.t2.club) : ''}</div>
         <div style="margin-left:12px"><input id="s2-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
       </div>
     `;
@@ -866,7 +1050,7 @@ function renderRankings(){
     html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">${title}</div>`;
     html += `<div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Club</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`;
     arr.forEach(r => {
-      html += `<tr><td>${r.rank}</td><td>${r.name}</td><td>${(r.players||[]).join(' & ')}</td><td>${r.club||''}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
+      html += `<tr><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml((r.players||[]).join(' & '))}</td><td>${escapeHtml(r.club||'')}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`;
     });
     html += `</tbody></table></div></div>`;
   });
@@ -933,9 +1117,9 @@ function renderQuarterfinals(){
     const aLabel = (m.a && m.a.isBye) ? 'BYE' : (m.a && m.a.name) || 'Unknown';
     const bLabel = (m.b && m.b.isBye) ? 'BYE' : (m.b && m.b.name) || 'Unknown';
     matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Quarterfinal ${idx+1}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="${m.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="${m.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
     div.appendChild(matchCard);
     inner.appendChild(div);
   });
@@ -989,10 +1173,10 @@ function renderSemifinals(){
     matchCard.style.padding = '10px';
     const aLabel = (match.a && match.a.isBye) ? 'BYE' : (match.a && match.a.name) || 'Unknown';
     const bLabel = (match.b && match.b.isBye) ? 'BYE' : (match.b && match.b.name) || 'Unknown';
-    matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${match.name}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+    matchCard.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">${escapeHtml(match.name)}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="${match.id}-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="${match.id}-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
     div.appendChild(matchCard);
     inner.appendChild(div);
   });
@@ -1041,9 +1225,9 @@ function renderFinals(){
     const aLabel = (f.a && f.a.isBye) ? 'BYE' : (f.a && f.a.name) || 'Unknown';
     const bLabel = (f.b && f.b.isBye) ? 'BYE' : (f.b && f.b.name) || 'Unknown';
     matchCardF.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">Final</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="FINAL-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="FINAL-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="FINAL-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
     divF.appendChild(matchCardF);
     inner.appendChild(divF);
   }
@@ -1055,9 +1239,9 @@ function renderFinals(){
     const aLabel = (t.a && t.a.isBye) ? 'BYE' : (t.a && t.a.name) || 'Unknown';
     const bLabel = (t.b && t.b.isBye) ? 'BYE' : (t.b && t.b.name) || 'Unknown';
     matchCardT.innerHTML = `<div style="font-weight:700;color:#eaf4ff;margin-bottom:6px;">3rd Place</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${aLabel}</div><input id="THIRD-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(aLabel)}</div><input id="THIRD-s1" class="score-input" type="number" min="0" placeholder="Score"></div>
       <div style="height:8px"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${bLabel}</div><input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
+      <div style="display:flex;align-items:center;justify-content:space-between;"><div class="team-label">${escapeHtml(bLabel)}</div><input id="THIRD-s2" class="score-input" type="number" min="0" placeholder="Score"></div>`;
     divT.appendChild(matchCardT);
     inner.appendChild(divT);
   }
@@ -1133,7 +1317,7 @@ function exportSummaryPDF(){
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
   teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
   teams.forEach(t => {
-    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${t.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${(t.players||[]).join(', ')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.club||''}</td></tr>`;
+    teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml((t.players||[]).join(', '))}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.club||'')}</td></tr>`;
   });
   teamsHtml += '</tbody></table>';
 
@@ -1144,7 +1328,7 @@ function exportSummaryPDF(){
       rankHtml += `<h4>${k==='all' ? 'Overall' : 'Group ' + k}</h4>`;
       rankHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rank</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Won</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Pts Lost</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Diff</th></tr></thead><tbody>`;
       (rankings[k]||[]).forEach(r=>{
-        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.name}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.club||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
+        rankHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${r.rank}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(r.club||'')}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.matchesWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsWon||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.ptsLost||0}</td><td style="padding:6px;border-bottom:1px solid #eee;">${r.diff||0}</td></tr>`;
       });
       rankHtml += '</tbody></table>';
     });
@@ -1155,17 +1339,17 @@ function exportSummaryPDF(){
   else {
     if (knockout.qf) {
       koHtml += '<h4>Quarterfinals</h4><ul>';
-      knockout.qf.forEach(q=> koHtml += `<li>${q.a.name} vs ${q.b.name}</li>`);
+      knockout.qf.forEach(q=> koHtml += `<li>${escapeHtml(q.a.name)} vs ${escapeHtml(q.b.name)}</li>`);
       koHtml += '</ul>';
     }
     if (knockout.sf1 && knockout.sf2) {
-      koHtml += `<h4>Semifinals</h4><ul><li>${knockout.sf1.a.name} vs ${knockout.sf1.b.name}</li><li>${knockout.sf2.a.name} vs ${knockout.sf2.b.name}</li></ul>`;
+      koHtml += `<h4>Semifinals</h4><ul><li>${escapeHtml(knockout.sf1.a.name)} vs ${escapeHtml(knockout.sf1.b.name)}</li><li>${escapeHtml(knockout.sf2.a.name)} vs ${escapeHtml(knockout.sf2.b.name)}</li></ul>`;
     }
     if (knockout.final) {
-      koHtml += `<h4>Final</h4><div>${knockout.final.a.name} vs ${knockout.final.b.name}</div>`;
+      koHtml += `<h4>Final</h4><div>${escapeHtml(knockout.final.a.name)} vs ${escapeHtml(knockout.final.b.name)}</div>`;
     }
     if (knockout.third) {
-      koHtml += `<h4>3rd Place</h4><div>${knockout.third.a.name} vs ${knockout.third.b.name}</div>`;
+      koHtml += `<h4>3rd Place</h4><div>${escapeHtml(knockout.third.a.name)} vs ${escapeHtml(knockout.third.b.name)}</div>`;
     }
   }
 
@@ -1196,7 +1380,7 @@ function exportSummaryPDF(){
 /* ---------- Reset ---------- */
 function resetAll(){
   if (!confirm('Reset all tournament data and UI?')) return;
-  teams = []; fixtures = []; rankings = {}; knockout = {};
+  teams = []; fixtures = []; rankings = {}; knockout = {}; clubs = [];
   $('entryInner').innerHTML=''; $('entryCard').style.display='none';
   $('summaryInner').innerHTML=''; $('summaryCard').style.display='none';
   $('fixturesGrid').innerHTML=''; $('fixturesCard').style.display='none';
@@ -1204,6 +1388,7 @@ function resetAll(){
   $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none';
   $('gameType').value='doubles'; $('numTeams').value=6; $('numCourts').value=2; $('numGroups').value=1;
   updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='within';
+  onRRTypeChange();
   setActiveTournamentId(null);
   renderTournamentInfo();
   updateBanner('Round Robin');
@@ -1237,6 +1422,7 @@ function bindUI(){
   $('manualSaveBtn') && ($('manualSaveBtn').onclick = manualSaveFromUI);
   $('manualSaveBtnKO') && ($('manualSaveBtnKO').onclick = manualSaveFromUI);
   $('renameTourneyBtn') && ($('renameTourneyBtn').onclick = renameActiveTournament);
+  $('manageClubsBtn') && ($('manageClubsBtn').onclick = openClubDialog);
 
   const backBtn = $('backToSummaryBtn');
   if (backBtn) backBtn.onclick = () => { $('fixturesCard').style.display='none'; $('summaryCard').style.display='block'; updateBanner('Group Summary'); };
@@ -1249,7 +1435,17 @@ function bindUI(){
   bindUI();
   renderLoadControl();
   renderTournamentInfo();
+  onRRTypeChange();
 })();
+
+/* ---------- Small helpers ---------- */
+function escapeHtml(str){
+  if (!str && str !== '') return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escapeHtmlAttr(str){
+  return (str||'').replace(/"/g,'&quot;');
+}
 </script>
 </body>
 </html>
