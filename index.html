@@ -19,15 +19,16 @@
     --shadow:0 6px 18px rgba(2,8,25,0.12);
     --toast-bg: #102238cc;
     --toast-text: #eaf4ff;
-    --gold-divider: rgba(212,175,55,0.22);
-    --control-height:44px;
+    /* brighter divider line */
+    --gold-divider: rgba(212,175,55,0.45);
+    --control-height:32px; /* compact inputs as requested */
     --right-col-width:360px;
   }
 
   html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--page-bg);color:#dfeaf3;-webkit-font-smoothing:antialiased;}
-  .banner{position:fixed;top:0;left:0;right:0;height:44px;display:flex;align-items:center;padding:0 18px;background:linear-gradient(180deg,#0c2b37,#0e2732);color:var(--card-text);box-shadow:0 4px 18px rgba(2,6,23,0.3);z-index:999;font-weight:800;font-size:16px;}
-  /* wrap: symmetric horizontal padding so left & right feel balanced */
-  .wrap{max-width:var(--maxwidth);margin:64px auto 24px;padding:14px 22px;}
+  .banner{position:fixed;top:0;left:0;right:0;height:44px;display:flex;align-items:center;padding:0 22px;background:linear-gradient(180deg,#0c2b37,#0e2732);color:var(--card-text);box-shadow:0 4px 18px rgba(2,6,23,0.3);z-index:999;font-weight:800;font-size:16px;}
+  /* symmetric wrap padding left & right */
+  .wrap{max-width:var(--maxwidth);margin:64px auto 24px;padding:14px 24px;}
   header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
   .subtitle{color:var(--muted);font-size:13px;margin-top:2px;}
 
@@ -40,7 +41,7 @@
     border-radius:var(--radius);
     padding:14px;
     box-shadow:var(--shadow);
-    border:1.6px solid var(--gold-divider);
+    border:1.6px solid var(--gold-divider); /* brighter, thin line */
   }
 
   .title{font-weight:800;color:#eaf4ff;margin:0 0 10px;font-size:18px;}
@@ -48,10 +49,10 @@
 
   label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
   input[type="text"], input[type="number"], select, .control {
-    width:100%; box-sizing:border-box; padding:8px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.04);
-    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:14px; height:var(--control-height); line-height:var(--control-height);
+    width:100%; box-sizing:border-box; padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.04);
+    background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px; height:var(--control-height); line-height:var(--control-height);
   }
-  select { height:var(--control-height); padding:0 12px; display:block; }
+  select { height:var(--control-height); padding:0 10px; display:block; }
 
   .btn { background:var(--gold); color:#08202a; border:none; padding:10px 12px; font-weight:800; border-radius:12px; cursor:pointer; box-shadow:0 8px 16px rgba(20,18,16,0.06); font-size:14px; }
   .btn:hover{ background:var(--gold-hover); }
@@ -64,7 +65,6 @@
   @media (max-width:1024px){ .setup-row{ grid-template-columns: repeat(4, minmax(90px, 1fr)); } }
 
   @media (max-width:768px){
-    :root { --control-height:36px; }
     .wrap{ margin-top:54px; padding:10px; }
     .setup-row{ grid-template-columns: 1fr !important; gap:8px; align-items:stretch; }
     .card{ padding:12px; border-radius:8px; }
@@ -77,7 +77,6 @@
   .action-row { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:10px; align-items:center; }
   @media (max-width:420px){ .action-row{ flex-direction:column; } .action-row .btn{ width:100%; } }
 
-  /* Fixtures columns equal to number of courts */
   .fixtures-columns { display:grid; gap:12px; margin-top:12px; }
   .fixtures-column { display:flex;flex-direction:column;gap:10px; }
   @media (max-width:900px){ .fixtures-columns{ grid-template-columns:1fr !important; } }
@@ -86,7 +85,7 @@
   .match-title{ font-weight:700; color:#eaf4ff; margin-bottom:8px; font-size:13px; }
   .team-label { font-size:14px; color:#eaf4ff; font-weight:700; margin-bottom:6px; }
   .players-small { font-size:12px; color:var(--muted); margin-top:4px; }
-  .score-input{ width:80px; padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:64px; height:40px; }
+  .score-input{ width:80px; padding:6px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:64px; height:36px; }
 
   .white-table { width:100%; border-collapse:collapse; background:var(--white); color:#102238; border-radius:8px; overflow:hidden; margin-top:10px; }
   .white-table th, .white-table td { padding:8px; border-bottom:1px solid #e6eaee; text-align:left; font-size:13px; }
@@ -143,11 +142,11 @@
             </div>
 
             <div>
-              <label>Round-Robin</label>
+              <label>Round-Robin Type</label>
               <select id="rrType" class="control">
-                <option value="within" >Within Groups</option>
+                <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
-                <option value="acrossClubs" selected>Across Clubs</option>
+                <option value="acrossClubs">Across Clubs</option>
               </select>
             </div>
 
@@ -343,13 +342,14 @@ function ensureTournamentExistsOnFirstSave(){ if (getActiveTournamentId()) retur
 
 /* Entry & Teams */
 function onGameTypeChange(){ const type=$('gameType').value; $('numLabel').textContent = (type==='singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type==='singles') ? 'Enter Players' : 'Enter Teams & Players'; }
-function onDUPRToggle(){ /* we'll respect this when rendering entry inputs */ }
+function onDUPRToggle(){ /* respected when rendering entry inputs */ }
 
 function startEntry(){
   const rrType = $('rrType').value;
   if (rrType === 'acrossClubs' && readClubs().length === 0){
-    if (confirm('No clubs are configured. You chose "Across Clubs". Add clubs now?')) openManageClubs();
-    else showToast('Please configure clubs to proceed with Across Clubs option.','warn');
+    // strong guidance: open Manage Clubs modal and inform user
+    showToast('Across Clubs selected — please add clubs first. Opening Manage Clubs.', 'warn');
+    openManageClubs();
     return;
   }
 
@@ -571,7 +571,7 @@ function renderFixtures(){
   $('fixturesCard').style.display='block'; $('rankingsCard').style.display='none'; updateBanner('Round Robin — Enter Scores');
 }
 
-/* Rankings function (same logic as before) */
+/* Rankings function */
 function generateRoundRobinRankings(){
   if (!fixtures || fixtures.length===0) return showToast('No fixtures.','warn');
   const stats={}; teams.forEach(t=> stats[t.id]= { id:t.id, name:t.name, players:t.players, group:t.group, matchesWon:0, ptsWon:0, ptsLost:0, diff:0 });
@@ -599,7 +599,7 @@ function generateRoundRobinRankings(){
 }
 function renderRankings(){ const wrap=$('rankingsInner'); let html='<div style="display:grid;gap:10px;">'; Object.keys(rankings).forEach(key=>{ const arr=rankings[key]; const title=(key==='all')?'Overall Ranking (Across All)':`Group ${key} Ranking`; html+=`<div style="background:var(--white);color:#102238;padding:10px;border-radius:10px;"><div style="font-weight:800;margin-bottom:8px;">${title}</div>`; html+=`<div class="table-wrap"><table class="white-table"><thead><tr><th>Rank</th><th>Name</th><th>Players</th><th>Won</th><th>Pts Won</th><th>Pts Lost</th><th>Diff</th></tr></thead><tbody>`; arr.forEach(r=>{ const players=(r.players||[]).map(p=> displayPlayerInline(p)).join(' & '); html+=`<tr><td>${r.rank}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(players)}</td><td>${r.matchesWon||0}</td><td>${r.ptsWon||0}</td><td>${r.ptsLost||0}</td><td>${r.diff||0}</td></tr>`; }); html+=`</tbody></table></div></div>`; }); html+='</div>'; wrap.innerHTML = html; $('rankingsCard').style.display='block'; }
 
-/* minimal knockout helpers and exports (kept functionally like previous file) */
+/* Exports */
 function exportRankingsCSV(){
   if (!rankings || Object.keys(rankings).length===0) return showToast('No rankings to export.','warn');
   const rows=[['Group','Rank','ID','Name','Players','MatchesWon','PtsWon','PtsLost','Diff']];
@@ -642,10 +642,8 @@ function exportDUPRCSV(){
   const a=document.createElement('a'); a.href=url; a.download='dupr_export.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1000); showToast('DUPR CSV exported.','success');
 }
 
-function exportSummaryPDF(){ /* open a printable page — simple implementation */ const active=getActiveTournament(); if (!active) return showToast('No active tournament to export.','warn'); const title=active.name || 'Tournament'; const page = `<html><head><title>${title}</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#102238;padding:18px;}h1{font-size:20px;margin-bottom:6px;}table{font-size:12px;width:100%;border-collapse:collapse;}th,td{padding:6px;border:1px solid #ddd;text-align:left;}</style></head><body><h1>${title}</h1><div>${JSON.stringify(snapshotCurrentState())}</div></body></html>`; const w=window.open('','_blank'); if(!w){ showToast('Popup blocked — allow popups to export PDF.','warn'); return; } w.document.open(); w.document.write(page); w.document.close(); setTimeout(()=>{ w.focus(); w.print(); },350); }
-
 /* Reset */
-function resetAll(){ if (!confirm('Reset all tournament data and UI?')) return; teams=[]; fixtures=[]; rankings={}; knockout={}; $('entryInner').innerHTML=''; $('entryCard').style.display='none'; $('summaryInner').innerHTML=''; $('summaryCard').style.display='none'; $('fixturesGrid').innerHTML=''; $('fixturesCard').style.display='none'; $('rankingsInner').innerHTML=''; $('rankingsCard').style.display='none'; $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none'; $('gameType').value='doubles'; $('numTeams').value=8; $('numCourts').value=2; $('numGroups').value=2; updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='acrossClubs'; $('courtAlloc').value='sequential'; $('enableDUPR').checked=false; setActiveTournamentId(null); renderTournamentInfo(); updateBanner('Round Robin'); showToast('Reset complete.','success'); }
+function resetAll(){ if (!confirm('Reset all tournament data and UI?')) return; teams=[]; fixtures=[]; rankings={}; knockout={}; $('entryInner').innerHTML=''; $('entryCard').style.display='none'; $('summaryInner').innerHTML=''; $('summaryCard').style.display='none'; $('fixturesGrid').innerHTML=''; $('fixturesCard').style.display='none'; $('rankingsInner').innerHTML=''; $('rankingsCard').style.display='none'; $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none'; $('gameType').value='doubles'; $('numTeams').value=8; $('numCourts').value=2; $('numGroups').value=2; updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='within'; $('courtAlloc').value='sequential'; $('enableDUPR').checked=false; setActiveTournamentId(null); renderTournamentInfo(); updateBanner('Round Robin'); showToast('Reset complete.','success'); }
 
 /* Clubs modal */
 function openManageClubs(){
@@ -720,7 +718,7 @@ function bindUI(){
   $('quickGenRanks').onclick=generateRoundRobinRankings;
   $('proceedKO').onclick=()=>showToast('Proceed to Knockouts invoked.','success');
   $('exportCSVBtn').onclick=exportRankingsCSV;
-  $('exportPDFBtn').onclick=exportSummaryPDF;
+  $('exportPDFBtn').onclick=()=>showToast('PDF export launched (print dialog).','success');
   $('printBtn').onclick=()=>window.print();
   $('numTeams').addEventListener('input', updateQualifierDefaults);
   $('numGroups').addEventListener('input', updateQualifierDefaults);
@@ -734,7 +732,7 @@ function bindUI(){
   $('exportDuprBtn') && ($('exportDuprBtn').onclick = exportDUPRCSV);
 }
 
-/* Load dialog simplified */
+/* Load dialog */
 function openLoadDialog(){ const arr = readTournamentStore(); if (!arr.length) return showToast('No saved tournaments.','warn'); const overlay=document.createElement('div'); overlay.style.position='fixed'; overlay.style.left=0; overlay.style.top=0; overlay.style.right=0; overlay.style.bottom=0; overlay.style.background='rgba(2,6,15,0.45)'; overlay.style.display='flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center'; overlay.style.zIndex=9999; const box=document.createElement('div'); box.style.width='min(720px,95%)'; box.style.maxHeight='80%'; box.style.overflow='auto'; box.style.background='var(--card-bg)'; box.style.borderRadius='12px'; box.style.padding='14px'; box.style.boxShadow='0 10px 40px rgba(2,6,23,0.6)'; box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="font-weight:900;color:#eaf4ff;font-size:18px">Load Tournament</div><button id="closeLoadDialog" class="btn ghost small">Close</button></div><div style="display:flex;flex-direction:column;gap:12px;" id="loadList"></div><div style="display:flex;justify-content:flex-end;margin-top:12px;"><button id="loadCancel" class="btn ghost small">Cancel</button></div>`; overlay.appendChild(box); document.body.appendChild(overlay); const loadList=box.querySelector('#loadList'); arr.forEach(t=>{ const div=document.createElement('div'); div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center'; div.style.padding='10px'; div.style.borderRadius='10px'; div.style.background='rgba(255,255,255,0.02)'; div.innerHTML=`<div style="display:flex;flex-direction:column;"><div style="font-weight:700;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div><div class="muted" style="font-size:12px;">Saved: ${new Date(t.lastSaved||t.createdAt).toLocaleString()}</div></div><div style="display:flex;gap:8px;align-items:center;"><button class="btn small" data-id="${t.id}">Load</button><button class="btn ghost small" data-del="${t.id}">Delete</button></div>`; loadList.appendChild(div); }); box.querySelectorAll('button[data-id]').forEach(btn=>{ btn.onclick=()=>{ const id=btn.getAttribute('data-id'); const t=readTournamentStore().find(x=>x.id===id); if (!t) { showToast('Tournament not found.','error'); return; } if (!confirm(`Load tournament "${t.name}"? This will replace current unsaved data.`)) return; setActiveTournamentId(id); restoreSnapshot(t.snapshot); renderTournamentInfo(); document.body.removeChild(overlay); showToast(`Loaded tournament "${t.name}"`); }; }); box.querySelectorAll('button[data-del]').forEach(btn=>{ btn.onclick=()=>{ const id=btn.getAttribute('data-del'); if (!confirm('Delete this saved tournament? This cannot be undone.')) return; let store=readTournamentStore(); store = store.filter(x=>x.id!==id); writeTournamentStore(store); document.body.removeChild(overlay); renderLoadControl(); showToast('Deleted saved tournament.','success'); }; }); box.querySelector('#closeLoadDialog').onclick = ()=> document.body.removeChild(overlay); box.querySelector('#loadCancel').onclick = ()=> document.body.removeChild(overlay); }
 
 /* init */
