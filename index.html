@@ -17,7 +17,7 @@
     --radius:8px;
     --maxwidth:1200px;
     --shadow:0 6px 18px rgba(2,8,25,0.12);
-    --toast-bg: #102238cc; /* translucent navy */
+    --toast-bg: #102238cc;
     --toast-text: #eaf4ff;
   }
 
@@ -40,10 +40,7 @@
     background: rgba(255,255,255,0.02); color:var(--card-text); font-size:13px;
   }
 
-  /* Round-Robin dropdown special */
   #rrType { font-size:12px; }
-
-  /* dropdown option visibility patch */
   select { background-color: rgba(255,255,255,0.1); color: var(--card-text); }
   select option { background-color: #102238; color: #e7f4ff; }
   select option:hover, select option:focus { background-color: var(--gold); color:#102238; }
@@ -75,7 +72,7 @@
   .match-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:8px; padding:10px; border:1px solid rgba(255,255,255,0.04); color:var(--card-text); }
   .match-title{ font-weight:700; color:#eaf4ff; margin-bottom:6px; font-size:13px; }
   .team-label { font-size:13px; color:#eaf4ff; font-weight:700; display:flex; flex-direction:column; }
-  .team-players { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.1; }
+  .team-players { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.1; max-width:320px; word-break:break-word; }
 
   .score-input{ width:72px; padding:7px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color:var(--card-text); text-align:center; font-size:13px; min-width:60px; }
 
@@ -94,7 +91,6 @@
     .score-input { width:60px; }
   }
 
-  /* Toast styles */
   .toast-container {
     position: fixed;
     z-index: 12000;
@@ -137,13 +133,15 @@
 
   .toast.fadeOut { animation: toastOut 220ms ease forwards; }
 
-  /* small helper text under RR type */
   .helper-small { font-size:11px;color:var(--muted); margin-top:4px; }
-
-  /* small inline add club button */
   .inline-add { margin-left:8px; padding:6px 8px; border-radius:8px; background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; font-weight:700; }
-
   .badge-unassigned { color:#b00020; font-weight:700; }
+
+  /* Club dialog responsive tweaks */
+  .club-box { max-width:640px; width:95%; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; }
+  .club-list-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
+  .club-list-row .label { font-weight:700; color:#eaf4ff; flex:1; word-break:break-word; }
+  .club-action-buttons { display:flex; gap:6px; }
 
   @media print{ .banner{display:none;} .toast-container{display:none;} }
 </style>
@@ -171,7 +169,7 @@
 
             <div>
               <label id="numLabel">No. of Teams</label>
-              <input id="numTeams" type="number" min="2" value="6" oninput="updateQualifierDefaults()">
+              <input id="numTeams" type="number" min="2" value="8" oninput="updateQualifierDefaults()">
             </div>
 
             <div>
@@ -180,8 +178,17 @@
             </div>
 
             <div>
+              <label>Court allocation</label>
+              <select id="courtAlloc" title="Court allocation">
+                <option value="roundwise" selected>Round-wise</option>
+                <option value="sequential">Sequential</option>
+              </select>
+              <div class="helper-small">Round-wise groups matches by round across courts. Sequential cycles matches across courts.</div>
+            </div>
+
+            <div>
               <label>No. of Groups</label>
-              <input id="numGroups" type="number" min="1" value="1" oninput="updateQualifierDefaults()">
+              <input id="numGroups" type="number" min="1" value="2" oninput="updateQualifierDefaults()">
             </div>
 
             <div>
@@ -198,7 +205,7 @@
               <label>Qualifiers/group</label>
               <select id="qualPerGroup" onchange="onQualPerGroupManual()">
                 <option value="1">1</option>
-                <option value="2">2</option>
+                <option value="2" selected>2</option>
                 <option value="4">4</option>
                 <option value="8">8</option>
               </select>
@@ -210,7 +217,7 @@
             </div>
           </div>
 
-          <!-- Manage clubs control (moved into RR-Type column area for better wrapping) -->
+          <!-- Manage clubs control -->
           <div class="manage-clubs-row">
             <button id="manageClubsBtn" class="btn small ghost" style="display:none;">Manage Clubs</button>
           </div>
@@ -277,7 +284,9 @@
             <button class="btn" id="proceedKO">Proceed to Knockouts</button>
             <button class="btn ghost" id="exportCSVBtn">Export Rankings (CSV)</button>
             <button class="btn ghost" id="exportPDFBtn">📄 Export Summary (PDF)</button>
+            <button class="btn ghost" id="exportSchedulePdfBtn">📄 Export Schedule (PDF)</button>
             <button class="btn ghost" id="printBtn">Print / Save as PDF</button>
+            <button class="btn ghost" id="printScheduleBtn">Print Schedule</button>
           </div>
         </div>
 
@@ -298,6 +307,7 @@
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
             <button class="btn small" id="quickGenFixtures">Generate Fixtures</button>
             <button class="btn small" id="quickGenRanks">Generate Round-Robin Rankings</button>
+            <button class="btn small ghost" id="quickExportSchedule">Export Schedule (PDF)</button>
           </div>
         </div>
 
@@ -316,7 +326,6 @@
     <footer style="margin-top:12px;font-size:12px;color:var(--muted);">Prompt-designed by Megh Kalyanasundaram</footer>
   </div>
 
-  <!-- Toast container -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
@@ -325,10 +334,10 @@ let teams = [];
 let fixtures = [];
 let rankings = {};
 let knockout = {};
-let clubs = []; // Setup-level clubs list (for Across Clubs mode)
+let clubs = []; // Setup-level clubs
 let autosaveTimer = null;
 const AUTOSAVE_DELAY = 800; // ms
-const TOAST_DURATION = 3500; // 3.5s
+const TOAST_DURATION = 3500; // ms
 
 /* ---------- Storage keys ---------- */
 const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
@@ -338,7 +347,7 @@ const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
 const $ = id => document.getElementById(id);
 function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
 
-/* ---------- Toast system ---------- */
+/* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
   try {
     const container = $('toastContainer');
@@ -357,11 +366,11 @@ function showToast(message, type = 'success') {
   }
 }
 
-/* ---------- Basic helpers ---------- */
+/* ---------- Helpers ---------- */
 function clampInt(v, min) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
 function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
-/* ---------- Tournament store helpers ---------- */
+/* ---------- Storage ---------- */
 function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
 function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
 function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
@@ -378,10 +387,11 @@ function snapshotCurrentState(){
     qualPerGroup: Number($('qualPerGroup').value) || 1,
     enableQF: !!$('enableQF').checked,
     rrType: $('rrType').value,
+    courtAlloc: $('courtAlloc').value,
     clubs: clubs.slice()
   };
   const teamsCopy = teams.map(t => ({ ...t }));
-  const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id }));
+  const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id, round: f.round || null }));
   const fixtureScores = {};
   fixtures.forEach(f => {
     const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value : '';
@@ -396,7 +406,7 @@ function snapshotCurrentState(){
   return { settings, teams: teamsCopy, fixtures: fixturesCopy, fixtureScores, ko, timestamp: Date.now() };
 }
 
-/* ---------- Restore snapshot ---------- */
+/* ---------- Restore ---------- */
 function restoreSnapshot(data){
   if (!data) return;
   const s = data.settings || {};
@@ -407,6 +417,7 @@ function restoreSnapshot(data){
   if (s.qualPerGroup) $('qualPerGroup').value = s.qualPerGroup;
   if (typeof s.enableQF !== 'undefined') $('enableQF').checked = !!s.enableQF;
   if (s.rrType) $('rrType').value = s.rrType;
+  if (s.courtAlloc) $('courtAlloc').value = s.courtAlloc;
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
   onGameTypeChange();
   onRRTypeChange();
@@ -414,7 +425,7 @@ function restoreSnapshot(data){
   teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(t => idToTeam[t.id] = t);
   fixtures = (data.fixtures || []).map(f => ({
-    id: f.id, matchNum: f.matchNum, court: f.court, group: f.group,
+    id: f.id, matchNum: f.matchNum, court: f.court, group: f.group, round: f.round || null,
     t1: idToTeam[f.t1Id] || { id: f.t1Id, name: 'Unknown', players:[], club:'', isBye: f.t1Id && String(f.t1Id).startsWith('bye') },
     t2: idToTeam[f.t2Id] || { id: f.t2Id, name: 'Unknown', players:[], club:'', isBye: f.t2Id && String(f.t2Id).startsWith('bye') }
   }));
@@ -438,7 +449,7 @@ function restoreSnapshot(data){
   }
 }
 
-/* ---------- Create tournament helpers ---------- */
+/* ---------- Create / Save ---------- */
 function makeTimestampName(){
   const d = new Date();
   const p = n => String(n).padStart(2,'0');
@@ -457,8 +468,6 @@ function createTournament(name){
   showToast(`Tournament created: ${tournament.name}`, 'success');
   return tournament;
 }
-
-/* ---------- Save active tournament ---------- */
 function saveActiveTournament(manual){
   const id = getActiveTournamentId();
   if (!id) { if (manual) showToast('No active tournament. Save teams first to create one.','warn'); return false; }
@@ -625,7 +634,7 @@ function onRRTypeChange(){
   }
 }
 
-/* ---------- Club management dialog ---------- */
+/* ---------- Club dialog (updated UI behavior) ---------- */
 function openClubDialog(){
   const overlay = document.createElement('div');
   overlay.style.position = 'fixed';
@@ -634,51 +643,83 @@ function openClubDialog(){
   overlay.style.display = 'flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center'; overlay.style.zIndex=9999;
 
   const box = document.createElement('div');
-  box.style.width='min(640px,96%)';
-  box.style.maxHeight='80%';
-  box.style.overflow='auto';
+  box.className = 'club-box';
   box.style.background='var(--card-bg)';
   box.style.borderRadius='10px';
   box.style.padding='12px';
   box.style.boxShadow='0 10px 40px rgba(2,6,23,0.6)';
 
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;">
       <div style="font-weight:800;color:#eaf4ff">Manage Clubs</div>
-      <div style="display:flex;gap:8px;"><button id="closeClubDialog" class="btn ghost small">Close</button><button id="saveClubsBtn" class="btn small">Save</button></div>
+      <div style="display:flex;gap:8px;">
+        <button id="closeClubDialog" class="btn ghost small">Close</button>
+        <button id="saveClubsBtn" class="btn small">Save</button>
+      </div>
     </div>
-    <div style="margin-bottom:8px;" class="muted">Add club names once here. During Entry you'll select a club from a dropdown for each team.</div>
+    <div class="muted">Add club names once here. During Entry you'll select a club from a dropdown for each team. On mobile, use the Add button to open the input.</div>
     <div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <div style="display:flex;gap:8px;margin-top:10px;"><input id="newClubName" type="text" placeholder="New club name" style="flex:1"/><button id="addClubBtn" class="btn small">Add</button></div>`;
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button id="addClubTrigger" class="btn small ghost">+ Add</button>
+      <div id="addClubArea" style="flex:1;display:none;gap:6px;align-items:center;"></div>
+    </div>`;
 
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
   const clubList = box.querySelector('#clubList');
+  const addTrigger = box.querySelector('#addClubTrigger');
+  const addArea = box.querySelector('#addClubArea');
 
   function renderClubList(){
     clubList.innerHTML = '';
     (clubs || []).forEach((c, idx) => {
       const row = document.createElement('div');
-      row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
-      row.innerHTML = `<div style="flex:1;color:#eaf4ff;font-weight:700;">${escapeHtml(c)}</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn ghost small" data-del="${idx}">Delete</button>
-          <button class="btn small" data-up="${idx}">↑</button>
-          <button class="btn small" data-down="${idx}">↓</button>
-        </div>`;
+      row.className = 'club-list-row';
+      const left = document.createElement('div');
+      left.className = 'label';
+      left.textContent = c;
+      const right = document.createElement('div');
+      right.className = 'club-action-buttons';
+      right.innerHTML = `<button class="btn ghost small" data-del="${idx}">Delete</button><button class="btn small" data-up="${idx}">↑</button><button class="btn small" data-down="${idx}">↓</button>`;
+      row.appendChild(left);
+      row.appendChild(right);
       clubList.appendChild(row);
     });
   }
   renderClubList();
 
-  box.querySelector('#addClubBtn').onclick = () => {
-    const v = (box.querySelector('#newClubName').value || '').trim();
-    if (!v) return showToast('Enter club name to add.','warn');
-    if (clubs.includes(v)) return showToast('Club already exists.','warn');
-    clubs.push(v);
-    box.querySelector('#newClubName').value = '';
-    renderClubList();
-    updateClubDropdowns(); // refresh entry dropdowns immediately if open
+  // When user clicks + Add, show a small input (mobile friendly)
+  addTrigger.onclick = () => {
+    addTrigger.style.display = 'none';
+    addArea.style.display = 'flex';
+    addArea.innerHTML = `<input id="tempNewClub" type="text" placeholder="New club name" style="flex:1;min-width:120px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:var(--card-text)"/>
+                         <button id="confirmAddClub" class="btn small">Add</button>
+                         <button id="cancelAddClub" class="btn ghost small">Cancel</button>`;
+    const temp = addArea.querySelector('#tempNewClub');
+    setTimeout(()=> temp.focus(),120);
+
+    // confirm add either by button or Enter key
+    addArea.querySelector('#confirmAddClub').onclick = () => {
+      const v = (temp.value||'').trim();
+      if (!v) return showToast('Enter club name to add.','warn');
+      if (clubs.includes(v)) return showToast('Club already exists.','warn');
+      clubs.push(v);
+      renderClubList();
+      updateClubDropdowns();
+      // autosave immediately
+      ensureTournamentExistsOnFirstSave();
+      saveActiveTournament(false);
+      showToast(`Added club: ${v}`,'success');
+      addArea.innerHTML = '';
+      addArea.style.display = 'none';
+      addTrigger.style.display = 'inline-block';
+    };
+    addArea.querySelector('#cancelAddClub').onclick = () => {
+      addArea.innerHTML = '';
+      addArea.style.display = 'none';
+      addTrigger.style.display = 'inline-block';
+    };
+    temp.addEventListener('keyup',(ev)=>{ if (ev.key === 'Enter') addArea.querySelector('#confirmAddClub').click(); });
   };
 
   box.addEventListener('click', (ev) => {
@@ -706,7 +747,6 @@ function openClubDialog(){
   });
 
   box.querySelector('#saveClubsBtn').onclick = () => {
-    // ensure persistence by saving snapshot (create tournament if needed)
     ensureTournamentExistsOnFirstSave();
     saveActiveTournament(true);
     showToast('Clubs saved.','success');
@@ -715,26 +755,22 @@ function openClubDialog(){
   box.querySelector('#closeClubDialog').onclick = () => document.body.removeChild(overlay);
 }
 
-/* ---------- Utility: update all club selects in Entry ---------- */
+/* ---------- update club selects present in entry form ---------- */
 function updateClubDropdowns(){
-  // update selects with id starting club_ inside entryInner
   const selects = document.querySelectorAll('#entryInner select[id^="club_"]');
   selects.forEach(sel => {
     const current = sel.value;
-    // remove existing options then re-add from clubs array
     while (sel.firstChild) sel.removeChild(sel.firstChild);
-    // add blank/unassigned option
     const blank = document.createElement('option');
     blank.value = '';
     blank.innerText = '--';
     sel.appendChild(blank);
-    clubs.forEach(c => {
+    (clubs || []).forEach(c => {
       const opt = document.createElement('option');
       opt.value = c;
       opt.innerText = c;
       sel.appendChild(opt);
     });
-    // restore previous selection if possible
     if (current && Array.from(sel.options).find(o => o.value === current)) sel.value = current;
   });
 }
@@ -747,7 +783,6 @@ function startEntry(){
   const rrType = $('rrType').value;
   const isClubRR = rrType === 'club';
 
-  // If club mode and no clubs defined, prompt user to add clubs first
   if (isClubRR && (!clubs || clubs.length === 0)){
     showToast('Please add clubs first (Manage Clubs).','warn');
     openClubDialog();
@@ -779,7 +814,6 @@ function startEntry(){
   }
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;"><button class="btn" id="saveTeamsBtn">Save</button><button class="btn ghost" id="cancelEntryBtn">Cancel</button></div>`;
   $('entryInner').innerHTML = html;
-  // populate club dropdowns now
   updateClubDropdowns();
 
   $('entryCard').style.display = 'block';
@@ -805,15 +839,12 @@ function addClubInline(index){
   if (!name) return showToast('No name entered.','warn');
   if (clubs.includes(name)) {
     showToast('Club already exists.','warn');
-    // set selection if dropdown present
     const sel = $(`club_${index}`); if (sel) sel.value = name;
     return;
   }
   clubs.push(name);
   updateClubDropdowns();
-  // set the newly added club on the originating dropdown if present
   const sel = $(`club_${index}`); if (sel) sel.value = name;
-  // persist immediately
   ensureTournamentExistsOnFirstSave();
   saveActiveTournament(true);
   showToast(`Added club: ${name}`,'success');
@@ -866,21 +897,41 @@ function assignGroups(){
   teams.forEach((t, idx) => t.group = (idx % numGroups) + 1);
   showGroupSummary();
 }
+
+/* Updated: show group summary by club when Across Clubs selected */
 function showGroupSummary(){
   if (!teams || teams.length === 0) return showToast('No participants defined.','warn');
-  const numGroups = Math.max(1, Number($('numGroups').value) || 1);
-  const groups = Array.from({length:numGroups}, ()=>[]);
-  teams.forEach(t=> groups[t.group-1].push(t));
+  const rrType = $('rrType').value;
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">';
-  groups.forEach((g,i)=>{
-    html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th><th>Club</th></tr></thead><tbody>`;
-    if (g.length===0) html += `<tr><td colspan="3" class="muted">No entries</td></tr>`;
-    else g.forEach(t => {
-      const clubCell = t.club ? escapeHtml(t.club) : `<span class="badge-unassigned">Unassigned</span>`;
-      html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td><td>${clubCell}</td></tr>`;
+
+  if (rrType === 'club'){
+    // Build club -> teams map. Prefer setup clubs order, otherwise use discovered clubs.
+    const clubsOrder = (clubs && clubs.length) ? clubs.slice() : Array.from(new Set(teams.map(t=> t.club || 'Unassigned')));
+    const byClub = {};
+    teams.forEach(t => { const c = (t.club || 'Unassigned') || 'Unassigned'; if (!byClub[c]) byClub[c]=[]; byClub[c].push(t); });
+
+    clubsOrder.forEach((clubName) => {
+      const g = byClub[clubName] || [];
+      html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">${escapeHtml(clubName)} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th></tr></thead><tbody>`;
+      if (g.length===0) html += `<tr><td colspan="2" class="muted">No entries</td></tr>`;
+      else g.forEach(t => html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td></tr>`);
+      html += '</tbody></table></div>';
     });
-    html += '</tbody></table></div>';
-  });
+  } else {
+    const numGroups = Math.max(1, Number($('numGroups').value) || 1);
+    const groups = Array.from({length:numGroups}, ()=>[]);
+    teams.forEach(t=> groups[t.group-1].push(t));
+    groups.forEach((g,i)=>{
+      html += `<div style="background:var(--white);color:#102238;padding:8px;border-radius:8px;"><div style="font-weight:700;margin-bottom:6px;">Group ${i+1} — ${g.length} entries</div><table class="white-table"><thead><tr><th>Name</th><th>Players</th><th>Club</th></tr></thead><tbody>`;
+      if (g.length===0) html += `<tr><td colspan="3" class="muted">No entries</td></tr>`;
+      else g.forEach(t => {
+        const clubCell = t.club ? escapeHtml(t.club) : `<span class="badge-unassigned">Unassigned</span>`;
+        html += `<tr><td>${escapeHtml(t.name)}</td><td>${escapeHtml((t.players||[]).join(' & '))}</td><td>${clubCell}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+    });
+  }
+
   html += '</div>';
   html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;"><button class="btn" id="genFixturesBtn">Generate Fixtures</button><button class="btn ghost" id="editEntryBtn">Edit</button></div>`;
   $('summaryInner').innerHTML = html;
@@ -897,6 +948,7 @@ function generateFixtures(){
   if (!teams || teams.length < 2) return showToast('Please add participants first.','warn');
   const numCourts = Math.max(1, Number($('numCourts').value) || 1);
   const rrType = $('rrType').value;
+  const courtAlloc = $('courtAlloc').value || 'roundwise';
   const numGroups = Math.max(1, Number($('numGroups').value) || 1);
   teams.forEach((t,idx) => { if (!t.group) t.group = (idx % numGroups) + 1; });
 
@@ -911,21 +963,30 @@ function generateFixtures(){
     Object.keys(groups).sort((a,b)=>a-b).forEach(gk => rawFixtures = rawFixtures.concat(roundRobin(groups[gk], Number(gk))));
   }
 
-  fixtures = rawFixtures.map((f, idx) => ({
-    id: idx,
-    matchNum: idx+1,
-    court: (idx % numCourts) + 1,
-    group: f.group,
-    t1: f.t1,
-    t2: f.t2
-  }));
+  fixtures = rawFixtures.map((f, idx) => {
+    let court;
+    if (courtAlloc === 'roundwise' && typeof f.round === 'number') {
+      court = (((f.round - 1) % numCourts) + 1);
+    } else {
+      court = ((idx % numCourts) + 1);
+    }
+    return {
+      id: idx,
+      matchNum: idx+1,
+      court,
+      group: f.group,
+      t1: f.t1,
+      t2: f.t2,
+      round: f.round || null
+    };
+  });
 
   renderFixtures();
 }
 
 function roundRobin(list, groupKey){
   const arr = [...list];
-  if (arr.length % 2 !== 0) arr.push({ id: 'bye_' + Math.random().toString(36).slice(2,6), name:'BYE', players:[], isBye:true });
+  if (arr.length % 2 !== 0) arr.push({ id: generateId('bye'), name:'BYE', players:[], isBye:true });
   const n = arr.length;
   const rounds = n-1;
   let order = arr.slice();
@@ -933,33 +994,60 @@ function roundRobin(list, groupKey){
   for (let r=0;r<rounds;r++){
     for (let i=0;i<n/2;i++){
       const a = order[i], b = order[n-1-i];
-      if (a.name !== 'BYE' && b.name !== 'BYE') out.push({ group: groupKey, t1: a, t2: b });
+      if (a.name !== 'BYE' && b.name !== 'BYE') out.push({ group: groupKey, t1: a, t2: b, round: r+1 });
     }
     order.splice(1,0,order.pop());
   }
   return out;
 }
 
-/* ---------- Cross-club round robin generator (uses setup clubs and team.club) ---------- */
+/* ---------- Balanced cross-club round robin (round-aware) ---------- */
 function crossClubRoundRobin(list){
+  // bucket teams by club
   const byClub = {};
   list.forEach(t => {
     const c = (t.club || 'Unassigned').trim() || 'Unassigned';
     if (!byClub[c]) byClub[c] = [];
     byClub[c].push(t);
   });
-  const clubsList = Object.keys(byClub);
+
+  const clubNames = Object.keys(byClub);
+  const pairRounds = []; // {pairLabel, rounds: [ [match,..], ... ]}
+
+  for (let i = 0; i < clubNames.length; i++){
+    for (let j = i+1; j < clubNames.length; j++){
+      const ca = clubNames[i], cb = clubNames[j];
+      const aTeams = byClub[ca].slice();
+      const bTeams = byClub[cb].slice();
+      let m = Math.max(aTeams.length, bTeams.length);
+      if (m === 0) continue;
+      const makeBye = () => ({ id: generateId('bye'), name:'BYE', players:[], club:'', isBye:true });
+
+      while (aTeams.length < m) aTeams.push(makeBye());
+      while (bTeams.length < m) bTeams.push(makeBye());
+
+      const rounds = Array.from({length:m}, ()=>[]);
+      for (let r=0;r<m;r++){
+        for (let k=0;k<m;k++){
+          const a = aTeams[k], b = bTeams[(k + r) % m];
+          if (!a || !b) continue;
+          if (a.isBye || b.isBye) continue;
+          // round number is r+1 (per this club-pair)
+          rounds[r].push({ group: 'club', t1: a, t2: b, round: r+1 });
+        }
+      }
+      pairRounds.push({ pairLabel: `${ca} vs ${cb}`, rounds });
+    }
+  }
+
+  // Flatten by interleaving rounds across club-pairs
   const out = [];
-  for (let i=0;i<clubsList.length;i++){
-    for (let j=i+1;j<clubsList.length;j++){
-      const ca = clubsList[i], cb = clubsList[j];
-      const aTeams = byClub[ca], bTeams = byClub[cb];
-      aTeams.forEach(a => {
-        bTeams.forEach(b => {
-          if ((a.name || '') === 'BYE' || (b.name || '') === 'BYE') return;
-          out.push({ group: 'club', t1: a, t2: b });
-        });
-      });
+  const maxRounds = pairRounds.reduce((mx,p) => Math.max(mx, p.rounds.length), 0);
+  for (let r = 0; r < maxRounds; r++){
+    for (let p = 0; p < pairRounds.length; p++){
+      const rounds = pairRounds[p].rounds;
+      if (r >= rounds.length) continue;
+      rounds[r].forEach(m => out.push(m));
     }
   }
   return out;
@@ -970,10 +1058,11 @@ function renderFixtures(){
   fixtures.forEach(m=>{
     const card = document.createElement('div'); card.className='match-card';
     const groupLabel = (m.group === 'all' ? 'All' : (m.group === 'club' ? 'Across Clubs' : m.group));
+    const roundLabel = m.round ? `Round ${m.round} • ` : '';
     const p1 = (m.t1 && m.t1.players && m.t1.players.length) ? escapeHtml((m.t1.players||[]).join(' & ')) : '';
     const p2 = (m.t2 && m.t2.players && m.t2.players.length) ? escapeHtml((m.t2.players||[]).join(' & ')) : '';
     card.innerHTML = `
-      <div class="match-title">Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
+      <div class="match-title">${roundLabel}Match ${m.matchNum} • Court ${m.court} • Group ${groupLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="team-label">${escapeHtml(m.t1.name)}${m.t1.club ? ' • ' + escapeHtml(m.t1.club) : ''}<div class="team-players">${p1}</div></div>
         <div style="margin-left:12px"><input id="s1-${m.id}" class="score-input" type="number" min="0" placeholder="Score"></div>
@@ -1118,15 +1207,11 @@ function prepareQuarterfinals(qualifiedList){
   renderQuarterfinals();
   updateBanner('Quarterfinals');
 }
-
 function renderQuarterfinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   knockout.qf.forEach((m,idx)=>{
-    const div = document.createElement('div');
-    div.style.marginBottom='8px';
-    const matchCard = document.createElement('div');
-    matchCard.className = 'match-card';
-    matchCard.style.padding = '10px';
+    const div = document.createElement('div'); div.style.marginBottom='8px';
+    const matchCard = document.createElement('div'); matchCard.className = 'match-card'; matchCard.style.padding='10px';
     const aName = (m.a && m.a.name) || 'Unknown';
     const bName = (m.b && m.b.name) || 'Unknown';
     const aPlayers = (m.a && m.a.players && m.a.players.length) ? escapeHtml((m.a.players||[]).join(' & ')) : '';
@@ -1189,9 +1274,7 @@ function renderSemifinals(){
   const inner = $('knockoutsInner'); inner.innerHTML = '';
   [knockout.sf1, knockout.sf2].forEach(match=>{
     const div = document.createElement('div'); div.style.marginBottom='8px';
-    const matchCard = document.createElement('div');
-    matchCard.className = 'match-card';
-    matchCard.style.padding = '10px';
+    const matchCard = document.createElement('div'); matchCard.className = 'match-card'; matchCard.style.padding='10px';
     const aName = (match.a && match.a.name) || 'Unknown';
     const bName = (match.b && match.b.name) || 'Unknown';
     const aPlayers = (match.a && match.a.players && match.a.players.length) ? escapeHtml((match.a.players||[]).join(' & ')) : '';
@@ -1350,22 +1433,18 @@ function exportRankingsCSV(){
   showToast('Rankings CSV exported.','success');
 }
 
-/* ---------- Export Summary (print-friendly PDF) ---------- */
-function exportSummaryPDF(){
-  const active = getActiveTournament();
-  if (!active) return showToast('No active tournament to export.','warn');
-
-  const title = active.name || 'Tournament';
-  const created = new Date(active.createdAt).toLocaleString();
-  const lastSaved = new Date(active.lastSaved || active.createdAt).toLocaleString();
-
+/* ---------- Export Summary (PDF) with Schedule table ---------- */
+function buildTeamsHtml(){
   let teamsHtml = '<h3>Teams / Players</h3><table style="width:100%;border-collapse:collapse;">';
   teamsHtml += '<thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team/Player</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Players</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Group</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Club</th></tr></thead><tbody>';
   teams.forEach(t => {
     teamsHtml += `<tr><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.name)}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml((t.players||[]).join(', '))}</td><td style="padding:6px;border-bottom:1px solid #eee;">${t.group||''}</td><td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(t.club||'')}</td></tr>`;
   });
   teamsHtml += '</tbody></table>';
+  return teamsHtml;
+}
 
+function buildRankHtml(){
   let rankHtml = '<h3>Rankings</h3>';
   if (!rankings || Object.keys(rankings).length===0) rankHtml += '<div>No rankings generated.</div>';
   else {
@@ -1378,25 +1457,45 @@ function exportSummaryPDF(){
       rankHtml += '</tbody></table>';
     });
   }
+  return rankHtml;
+}
 
-  let koHtml = '<h3>Knockout Results</h3>';
-  if (!knockout || (!knockout.qf && !knockout.sf1 && !knockout.final)) koHtml += '<div>No knockout stage run yet.</div>';
+function buildScheduleHtml(){
+  let scheduleHtml = '<h3>Match Schedule</h3>';
+  if (!fixtures || fixtures.length === 0) scheduleHtml += '<div>No fixtures generated.</div>';
   else {
-    if (knockout.qf) {
-      koHtml += '<h4>Quarterfinals</h4><ul>';
-      knockout.qf.forEach(q=> koHtml += `<li>${escapeHtml(q.a.name)} (${escapeHtml((q.a.players||[]).join(' & '))}) vs ${escapeHtml(q.b.name)} (${escapeHtml((q.b.players||[]).join(' & '))})</li>`);
-      koHtml += '</ul>';
-    }
-    if (knockout.sf1 && knockout.sf2) {
-      koHtml += `<h4>Semifinals</h4><ul><li>${escapeHtml(knockout.sf1.a.name)} vs ${escapeHtml(knockout.sf1.b.name)}</li><li>${escapeHtml(knockout.sf2.a.name)} vs ${escapeHtml(knockout.sf2.b.name)}</li></ul>`;
-    }
-    if (knockout.final) {
-      koHtml += `<h4>Final</h4><div>${escapeHtml(knockout.final.a.name)} vs ${escapeHtml(knockout.final.b.name)}</div>`;
-    }
-    if (knockout.third) {
-      koHtml += `<h4>3rd Place</h4><div>${escapeHtml(knockout.third.a.name)} vs ${escapeHtml(knockout.third.b.name)}</div>`;
-    }
+    const sorted = fixtures.slice().sort((a,b)=>{
+      const ra = a.round || 9999, rb = b.round || 9999;
+      if (ra !== rb) return ra - rb;
+      if (a.court !== b.court) return a.court - b.court;
+      return a.matchNum - b.matchNum;
+    });
+    scheduleHtml += `<table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px;">
+      <thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Round</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Match</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Court</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team A (Players)</th><th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Team B (Players)</th></tr></thead><tbody>`;
+    sorted.forEach(m=>{
+      const rlabel = m.round ? `R${m.round}` : '';
+      const t1players = (m.t1 && m.t1.players && m.t1.players.length) ? (m.t1.players.join(' & ')) : '';
+      const t2players = (m.t2 && m.t2.players && m.t2.players.length) ? (m.t2.players.join(' & ')) : '';
+      scheduleHtml += `<tr>
+        <td style="padding:6px;border-bottom:1px solid #eee;">${rlabel}</td>
+        <td style="padding:6px;border-bottom:1px solid #eee;">${m.matchNum}</td>
+        <td style="padding:6px;border-bottom:1px solid #eee;">${m.court}</td>
+        <td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(m.t1.name)}<div style="font-size:11px;color:#667085">${escapeHtml(t1players)}</div></td>
+        <td style="padding:6px;border-bottom:1px solid #eee;">${escapeHtml(m.t2.name)}<div style="font-size:11px;color:#667085">${escapeHtml(t2players)}</div></td>
+      </tr>`;
+    });
+    scheduleHtml += '</tbody></table>';
   }
+  return scheduleHtml;
+}
+
+function exportSummaryPDF(){
+  const active = getActiveTournament();
+  if (!active) return showToast('No active tournament to export.','warn');
+
+  const title = active.name || 'Tournament';
+  const created = new Date(active.createdAt).toLocaleString();
+  const lastSaved = new Date(active.lastSaved || active.createdAt).toLocaleString();
 
   const page = `
     <html><head><title>${title}</title>
@@ -1405,13 +1504,14 @@ function exportSummaryPDF(){
       h1{font-size:20px;margin-bottom:6px;}
       h3{font-size:16px;margin-top:12px;margin-bottom:6px;}
       table{font-size:12px;}
+      @media print { body { -webkit-print-color-adjust: exact; } }
     </style>
     </head><body>
       <h1>${title}</h1>
       <div style="color:#667085;font-size:12px;margin-bottom:10px;">Created: ${created} • Saved: ${lastSaved}</div>
-      ${teamsHtml}
-      ${rankHtml}
-      ${koHtml}
+      ${buildTeamsHtml()}
+      ${buildRankHtml()}
+      ${buildScheduleHtml()}
     </body></html>
   `;
   const w = window.open('', '_blank');
@@ -1420,6 +1520,39 @@ function exportSummaryPDF(){
   w.document.write(page);
   w.document.close();
   setTimeout(()=>{ w.focus(); w.print(); }, 350);
+}
+
+/* Export schedule-only (PDF) and print schedule-only */
+function exportSchedulePDF(){
+  const active = getActiveTournament();
+  if (!active) return showToast('No active tournament to export.','warn');
+  const title = (active.name || 'Tournament') + ' — Schedule';
+  const created = new Date(active.createdAt).toLocaleString();
+  const page = `
+    <html><head><title>${title}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#102238;padding:18px;}
+      h1{font-size:18px;margin-bottom:6px;}
+      h3{font-size:14px;margin-top:12px;margin-bottom:6px;}
+      table{font-size:12px;}
+      @media print { body { -webkit-print-color-adjust: exact; } }
+    </style>
+    </head><body>
+      <h1>${title}</h1>
+      <div style="color:#667085;font-size:12px;margin-bottom:10px;">Created: ${created}</div>
+      ${buildScheduleHtml()}
+    </body></html>
+  `;
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Popup blocked — allow popups to export PDF.','warn'); return; }
+  w.document.open();
+  w.document.write(page);
+  w.document.close();
+  setTimeout(()=>{ w.focus(); w.print(); }, 350);
+}
+
+function printScheduleOnly(){
+  exportSchedulePDF();
 }
 
 /* ---------- Reset ---------- */
@@ -1431,7 +1564,8 @@ function resetAll(){
   $('fixturesGrid').innerHTML=''; $('fixturesCard').style.display='none';
   $('rankingsInner').innerHTML=''; $('rankingsCard').style.display='none';
   $('knockoutsInner').innerHTML=''; $('knockoutsCard').style.display='none';
-  $('gameType').value='doubles'; $('numTeams').value=6; $('numCourts').value=2; $('numGroups').value=1;
+  $('gameType').value='doubles'; $('numTeams').value=8; $('numCourts').value=2; $('numGroups').value=2;
+  $('courtAlloc').value='roundwise';
   updateQualifierDefaults(); $('enableQF').checked=false; $('rrType').value='within';
   onRRTypeChange();
   setActiveTournamentId(null);
@@ -1459,7 +1593,10 @@ function bindUI(){
   $('proceedKO').onclick = proceedToKnockouts;
   $('exportCSVBtn').onclick = exportRankingsCSV;
   $('exportPDFBtn').onclick = exportSummaryPDF;
+  $('exportSchedulePdfBtn').onclick = exportSchedulePDF;
   $('printBtn').onclick = ()=> window.print();
+  $('printScheduleBtn').onclick = printScheduleOnly;
+  $('quickExportSchedule').onclick = exportSchedulePDF;
   $('numTeams').addEventListener('input', updateQualifierDefaults);
   $('numGroups').addEventListener('input', updateQualifierDefaults);
   $('qualPerGroup').addEventListener('change', onQualPerGroupManual);
