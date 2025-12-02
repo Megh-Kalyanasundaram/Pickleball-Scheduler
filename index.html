@@ -82,6 +82,7 @@
     color:var(--card-text);
   }
   select option{ color:#0f2435; background:#ffffff; }
+  select:focus option:checked, select option:hover{ background:var(--gold-hover); color:#102238; }
 
   .score-input { width:76px; text-align:center; font-weight:600; }
 
@@ -248,6 +249,7 @@
   .dialog-box{ width: min(680px, 100%); max-width:680px; background:var(--card-bg); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); max-height:88vh; overflow:auto; box-sizing:border-box; margin:0 auto; }
   @media (max-width:600px){ .dialog-box{ width: calc(100% - 32px); padding:10px; border-radius:var(--radius); } }
 
+  /* Schedule view styles */
   .schedule-grid{
     display:flex;
     gap:12px;
@@ -270,6 +272,21 @@
     border:1px solid rgba(255,255,255,0.02);
   }
   .court-label{ font-size:13px;font-weight:700;color:var(--muted); margin-bottom:6px; }
+
+  /* disabled appearance for No. of Groups and QF checkbox when not applicable */
+  .disabled-input{ opacity:0.55; pointer-events:none; }
+  .disabled-checkbox{ opacity:0.55; pointer-events:none; }
+
+  /* Visual emphasis for 'None - Only RR' selection */
+  .form-item.qual-none select {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 4px rgba(212,175,55,0.07);
+  }
+  /* Attempt to style the option itself (browser-dependent) */
+  select option[value="0"] {
+    font-weight:700;
+    color: #b07f1a;
+  }
 </style>
 </head>
 <body>
@@ -281,14 +298,7 @@
       <div>
         <!-- Setup -->
         <div class="card setup-card">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div class="title">Setup</div>
-            <!-- Permanent Edit Teams button, always available -->
-            <div>
-              <button class="btn ghost small" onclick="startEntry(); document.getElementById('entryCard').scrollIntoView({behavior:'smooth'});">Edit Teams</button>
-            </div>
-          </div>
-
+          <div class="title">Setup</div>
           <div class="form-row">
             <div class="form-item">
               <label>Game Type</label>
@@ -304,6 +314,7 @@
             </div>
 
             <div class="form-item">
+              <!-- RR dropdown placed before No. of Groups as requested -->
               <label>Round-Robin Type</label>
               <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
@@ -347,21 +358,8 @@
             <button id="manageClubsBtn" class="btn small ghost" style="display:none;" onclick="openClubDialog()">Manage Clubs</button>
           </div>
 
-          <div style="margin-top:12px;display:flex;gap:12px;align-items:center;">
-            <div style="flex:1">
-              <label style="font-size:12px;color:var(--muted);margin-bottom:6px;">Placement Mode</label>
-              <select id="placementMode" onchange="onPlacementModeChange()">
-                <option value="aggressive">Aggressive spacing (min back-to-backs)</option>
-                <option value="utilize" selected>Maximise court utilisation</option>
-              </select>
-            </div>
-            <div style="min-width:160px;">
-              <button id="startEntryBtn" class="btn" onclick="startEntry()">Next: Enter Details</button>
-            </div>
-          </div>
-
           <div class="action-row" style="margin-top:12px;">
-            <button class="btn" onclick="generateFixtures()">Generate Fixtures</button>
+            <button class="btn" id="startEntryBtn" onclick="startEntry()">Next: Enter Details</button>
             <button class="btn ghost" id="resetBtn" onclick="if(confirm('Reset everything?'))location.reload()">Reset All</button>
             <button class="btn ghost small" id="loadBtn" onclick="openLoadDialog()">Load</button>
           </div>
@@ -369,15 +367,18 @@
 
         <!-- Entry -->
         <div id="entryCard" class="card" style="margin-top:12px;display:none;">
-          <div class="entry-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="entry-header">
             <div style="display:flex;flex-direction:column;">
               <div class="title" id="entryTitle">Enter Teams & Players</div>
               <div style="font-size:12px;color:var(--muted);" id="entrySubtitle"></div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button class="save-icon-btn btn small ghost" title="Save Teams" onclick="saveTeams();showToast('Teams saved','success')">
-                <!-- small save icon -->
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v6h10"></path></svg>
+              <button class="save-icon-btn" title="Save Teams" onclick="saveTeams();">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <path d="M17 21v-8H7v8"></path>
+                  <path d="M7 3v6h10"></path>
+                </svg>
               </button>
             </div>
           </div>
@@ -463,9 +464,10 @@
         <div class="card" style="margin-top:12px;">
           <div class="title">Notes</div>
           <div style="margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.5;">
-            • Placement Mode is deterministic and saved with tournament<br>
-            • Aggressive spacing: fewer back-to-backs but may increase rounds<br>
-            • Maximise utilisation: fills rounds early, pushes idle slots to the end
+            • Round-robin excludes knockouts<br>
+            • 4 qualifiers → Semifinals<br>
+            • ≥8 qualifiers + QF enabled → Quarterfinals<br>
+            • Both scores required • No ties allowed
           </div>
         </div>
       </div>
@@ -504,17 +506,6 @@ function showToast(message, type = 'success') {
 function clampInt(v, min=0){ const n=Number(v); return Number.isNaN(n)?min:Math.max(min, Math.floor(n)); }
 function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
-/* ---------- small helpers ---------- */
-function updateBanner(stage){
-  const el = $('stageBanner');
-  if (!el) return;
-  const txt = el.querySelector('#stageText');
-  if (txt) txt.textContent = `Current Stage: ${stage}`;
-  else el.textContent = `Current Stage: ${stage}`;
-}
-
-function makeTimestampName(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}`; }
-
 /* ---------- Storage ---------- */
 function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
 function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
@@ -525,16 +516,15 @@ function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) ret
 /* ---------- Snapshot & restore ---------- */
 function snapshotCurrentState(){
   const settings = {
-    gameType: $('gameType') ? $('gameType').value : 'doubles',
-    numTeams: Number($('numTeams') ? $('numTeams').value : 0) || 0,
-    numCourts: Number($('numCourts') ? $('numCourts').value : 1) || 1,
-    numGroups: Number($('numGroups') ? $('numGroups').value : 1) || 1,
-    qualPerGroup: Number($('qualPerGroup') ? $('qualPerGroup').value : 0) || 0,
+    gameType: $('gameType').value,
+    numTeams: Number($('numTeams').value) || 0,
+    numCourts: Number($('numCourts').value) || 1,
+    numGroups: Number($('numGroups').value) || 1,
+    qualPerGroup: Number($('qualPerGroup').value) || 0,
     enableQF: !!$('enableQF')?.checked,
-    rrType: $('rrType') ? $('rrType').value : 'within',
+    rrType: $('rrType').value,
     clubs: clubs.slice(),
-    duprEnabled: !!$('enableDUPR')?.checked,
-    placementMode: $('placementMode') ? $('placementMode').value : 'utilize'
+    duprEnabled: !!$('enableDUPR')?.checked
   };
   const teamsCopy = teams.map(t => ({ ...t, players: (t.players||[]).map(p => ({...p})) }));
   const fixturesCopy = fixtures.map(f => ({ id:f.id, matchNum:f.matchNum, court:f.court, group:f.group, t1Id: f.t1.id, t2Id: f.t2.id, round: f.round || null }));
@@ -549,16 +539,15 @@ function snapshotCurrentState(){
 function restoreSnapshot(data){
   if (!data) return;
   const s = data.settings || {};
-  if ($('gameType')) $('gameType').value = s.gameType || 'doubles';
-  if ($('numTeams')) $('numTeams').value = s.numTeams || 8;
-  if ($('numCourts')) $('numCourts').value = s.numCourts || 2;
-  if ($('numGroups')) $('numGroups').value = s.numGroups || 2;
-  if ($('qualPerGroup')) $('qualPerGroup').value = (typeof s.qualPerGroup !== 'undefined') ? String(s.qualPerGroup) : '2';
+  $('gameType').value = s.gameType || 'doubles';
+  $('numTeams').value = s.numTeams || 8;
+  $('numCourts').value = s.numCourts || 3;
+  $('numGroups').value = s.numGroups || 2;
+  $('qualPerGroup').value = (typeof s.qualPerGroup !== 'undefined') ? String(s.qualPerGroup) : '2';
   if ($('enableQF')) $('enableQF').checked = !!s.enableQF;
-  if ($('rrType')) $('rrType').value = s.rrType || 'within';
+  $('rrType').value = s.rrType || 'within';
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
   if ($('enableDUPR')) $('enableDUPR').checked = !!s.duprEnabled;
-  if ($('placementMode')) $('placementMode').value = s.placementMode || 'utilize';
   onGameTypeChange(); onRRTypeChange();
   teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(tt => idToTeam[tt.id] = tt);
@@ -566,10 +555,12 @@ function restoreSnapshot(data){
   showGroupSummary(); renderFixtures();
   const scores = data.fixtureScores || {};
   Object.keys(scores).forEach(k => { if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || ''; if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || ''; });
+  // also update visual emphasis for qualifiers
   updateQualVisual();
 }
 
 /* ---------- Save/load UI ---------- */
+function makeTimestampName(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}`; }
 function createTournament(name){ const id='t_'+Math.random().toString(36).slice(2,10); const tournament={ id,name:name||makeTimestampName(),createdAt:new Date().toISOString(),lastSaved:Date.now(), snapshot:snapshotCurrentState() }; const arr=readTournamentStore(); arr.unshift(tournament); writeTournamentStore(arr); setActiveTournamentId(id); renderLoadControl(); renderTournamentInfo(); showToast(`Tournament created: ${tournament.name}`); return tournament; }
 function saveActiveTournament(manual){ const id=getActiveTournamentId(); if (!id){ if (manual) showToast('No active tournament. Save teams first.','warn'); return false; } const arr=readTournamentStore(); const idx=arr.findIndex(t=>t.id===id); const snap=snapshotCurrentState(); const now=Date.now(); if (idx>=0){ arr[idx].snapshot=snap; arr[idx].lastSaved=now; } else { arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap }); } writeTournamentStore(arr); renderLoadControl(); renderTournamentInfo(); if (manual) showToast('Tournament saved','success'); return true; }
 function scheduleAutoSave(){ if (!getActiveTournamentId()) { ensureTournamentExistsOnFirstSave(); } if (!getActiveTournamentId()) return; if (autosaveTimer) clearTimeout(autosaveTimer); autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY); }
@@ -643,9 +634,11 @@ function onRRTypeChange(){
 
 /* ---------- QF checkbox availability ---------- */
 function updateQFAvailability(){
+  const type = $('gameType').value;
   const count = clampInt($('numTeams').value, 0);
   const qfCheckbox = $('enableQF');
   const qfLabel = $('enableQFLabel');
+  // For doubles, teams count is numTeams; for singles we treat same field as number of players
   const eligible = count >= 8;
   if (!eligible){
     qfCheckbox.checked = false;
@@ -657,7 +650,17 @@ function updateQFAvailability(){
   }
 }
 
+/* called when number of teams/players changed */
+function onParticipantCountChange(){
+  updateQFAvailability();
+}
+
 /* ---------- Club Management ---------- */
+/*
+ openClubDialog(promptAdd = false)
+ - promptAdd true => immediately triggers the Add Club prompt (same as user clicking "+ Add Club")
+ - dialog renders current clubs and allows add/delete/reorder. Save & Close persists to snapshot when user clicks Save & Close.
+*/
 function openClubDialog(promptAdd = false){
   const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
   const box = document.createElement('div'); box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
@@ -698,26 +701,37 @@ function openClubDialog(promptAdd = false){
   });
 
   box.querySelector('#saveClubsBtn').onclick = () => {
+    // Persist to active tournament snapshot if exists
     saveActiveTournament(true);
     overlay.remove();
     showToast('Clubs saved','success');
   };
 
+  // If promptAdd is requested, trigger the add click after a short delay so the dialog is visible
   if (promptAdd){
     setTimeout(()=> {
       try { addBtn.click(); } catch(e){ console.warn('promptAdd failed', e); }
     }, 120);
   }
+
+  // return overlay in case caller wants to close it programmatically
   return overlay;
 }
+
 function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
 /* ---------- Entry ---------- */
+/*
+ startEntry() now:
+ - If rrType == 'club' and clubs.length == 0 -> openClubDialog(promptAdd=true) and prevent entry form from rendering
+ - Otherwise render entry form as before
+*/
 function startEntry(){
   const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
 
   if (clubRR && clubs.length===0) {
+    // Open manage clubs and prompt to add immediately so user doesn't have to hunt for the button
     openClubDialog(true);
     showToast('No clubs found — please add clubs before entering teams.','warn');
     return;
@@ -768,163 +782,18 @@ function showGroupSummary(){
   $('summaryInner').innerHTML = html; $('summaryCard').style.display='block'; $('fixturesCard').style.display='none'; $('rankingsCard').style.display='none'; $('knockoutsCard').style.display='none'; updateBanner('Summary');
 }
 
-/* ================== Two allocator implementations ==================
-   1) utilisation-first (fills rounds left-to-right; idle at end) — util-first
-   2) balanced allocator (tries to avoid back-to-backs, equalize court load) — aggressive
-   GenerateFixtures will choose based on placementMode dropdown.
-=================================================================*/
-
-function getPlacementMode(){ return $('placementMode') ? $('placementMode').value : 'utilize'; }
-function onPlacementModeChange(){ /* UI-only: placeholder (mode picked when Generate clicked) */ }
-
-/* ---------- Balanced allocator (aggressive) ---------- */
-function generateFixturesBalancedAllocator(fixturesIn, courts){
-  // Input fixturesIn: array of {id,matchNum,t1,t2,...} — we will assign round & court
-  // We'll try to place each match into earliest round where both teams free and court free,
-  // while preferring to minimize court load imbalance and back-to-backs.
-  const fixturesCopy = fixturesIn.map(f => ({ ...f, round: null, court: null }));
-  const rounds = []; // rounds[r] = array length=courts with possibly nulls
-  const lastPlayedRound = {}; // teamId -> last round index
-  const courtLoads = Array.from({length:courts}, ()=>0);
-
-  let matchNum = 1;
-  for (const f of fixturesCopy){
-    f.matchNum = matchNum++;
-    // Try to place into existing rounds
-    let placed = false;
-    for (let r = 0; r < rounds.length && !placed; r++){
-      const teamsInRound = new Set();
-      for (let c=0;c<courts;c++){
-        const mf = rounds[r][c];
-        if (mf){ teamsInRound.add(mf.t1.id); teamsInRound.add(mf.t2.id); }
-      }
-      if (teamsInRound.has(f.t1.id) || teamsInRound.has(f.t2.id)) continue; // conflict in this round
-      // choose best court in this round (free slots only)
-      let bestCourt = -1;
-      let bestPenalty = Infinity;
-      for (let c=0;c<courts;c++){
-        if (rounds[r][c]) continue; // occupied
-        const backPenalty = ((lastPlayedRound[f.t1.id] === r-1) ? 1 : 0) + ((lastPlayedRound[f.t2.id] === r-1) ? 1 : 0);
-        const courtLoadPenalty = courtLoads[c];
-        const penalty = backPenalty * 1000 + courtLoadPenalty;
-        if (penalty < bestPenalty){ bestPenalty = penalty; bestCourt = c; }
-      }
-      if (bestCourt >= 0){
-        rounds[r][bestCourt] = f;
-        f.round = r+1;
-        f.court = bestCourt+1;
-        lastPlayedRound[f.t1.id] = r;
-        lastPlayedRound[f.t2.id] = r;
-        courtLoads[bestCourt] += 1;
-        placed = true;
-        break;
-      }
-    }
-
-    if (!placed){
-      // create new round
-      const newRoundIndex = rounds.length;
-      const newRound = Array.from({length:courts}, ()=>null);
-      // place on least-loaded court
-      let minCourt = 0;
-      for (let c=1;c<courts;c++){ if (courtLoads[c] < courtLoads[minCourt]) minCourt = c; }
-      newRound[minCourt] = f;
-      rounds.push(newRound);
-      f.round = newRoundIndex + 1;
-      f.court = minCourt + 1;
-      lastPlayedRound[f.t1.id] = newRoundIndex;
-      lastPlayedRound[f.t2.id] = newRoundIndex;
-      courtLoads[minCourt] += 1;
-    }
-  }
-
-  // return placed fixtures
-  return fixturesCopy;
-}
-
-/* ---------- Utilisation-first allocator (fills earliest round aggressively) ---------- */
-function generateFixturesUtilisationFirst(fixturesIn, courts){
-  const fixturesCopy = fixturesIn.map(f => ({ ...f, round: null, court: null }));
-  const totalMatches = fixturesCopy.length;
-  let roundsNeeded = Math.ceil(totalMatches / courts) || 1;
-  const lastPlayedRound = {};
-  function unplacedList(){ return fixturesCopy.filter(f=>f.round===null); }
-
-  function charcode_sum(s){ let sum=0; for(let i=0;i<s.length;i++) sum+=s.charCodeAt(i); return sum; }
-
-  function chooseForSlot(targetRound, occupiedTeamSet){
-    const candidates = unplacedList().filter(f => !occupiedTeamSet.has(f.t1.id) && !occupiedTeamSet.has(f.t2.id));
-    if (!candidates.length) return null;
-    const scored = candidates.map(f => {
-      const a = f.t1.id, b = f.t2.id;
-      const aLast = (typeof lastPlayedRound[a] !== 'undefined') ? lastPlayedRound[a] : -9999;
-      const bLast = (typeof lastPlayedRound[b] !== 'undefined') ? lastPlayedRound[b] : -9999;
-      const backToBackPenalty = ((aLast === targetRound-1) ? 10000 : 0) + ((bLast === targetRound-1) ? 10000 : 0);
-      const assignedCount = ((aLast === -9999) ? 0 : 1) + ((bLast === -9999) ? 0 : 1);
-      const tiebreak = (charcode_sum(a) + charcode_sum(b) + targetRound) % 997;
-      const score = backToBackPenalty + assignedCount*1000 + tiebreak;
-      const key = (a < b) ? (a+'|'+b) : (b+'|'+a);
-      return { f, score, key };
-    });
-    scored.sort((x,y)=> (x.score - y.score) || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
-    return scored[0].f;
-  }
-
-  for (let r = 1; r <= roundsNeeded; r++){
-    for (let c = 1; c <= courts; c++){
-      const occupied = new Set();
-      for (let ff of fixturesCopy) { if (ff.round === r) { occupied.add(ff.t1.id); occupied.add(ff.t2.id); } }
-      let chosen = chooseForSlot(r, occupied);
-      if (!chosen) {
-        const remaining = unplacedList();
-        if (remaining.length){
-          remaining.sort((a,b) => {
-            const ka = (a.t1.id < a.t2.id ? a.t1.id+'|'+a.t2.id : a.t2.id+'|'+a.t1.id);
-            const kb = (b.t1.id < b.t2.id ? b.t1.id+'|'+b.t2.id : b.t2.id+'|'+b.t1.id);
-            return ka < kb ? -1 : (ka > kb ? 1 : 0);
-          });
-          chosen = remaining[0];
-        } else {
-          continue;
-        }
-      }
-      if (chosen && chosen.round === null) {
-        chosen.round = r;
-        chosen.court = c;
-        lastPlayedRound[chosen.t1.id] = r;
-        lastPlayedRound[chosen.t2.id] = r;
-      }
-    }
-  }
-
-  while (unplacedList().length) {
-    roundsNeeded++;
-    for (let c = 1; c <= courts; c++){
-      const remaining = unplacedList();
-      if (!remaining.length) break;
-      remaining.sort((a,b) => {
-        const ka = (a.t1.id < a.t2.id ? a.t1.id+'|'+a.t2.id : a.t2.id+'|'+a.t1.id);
-        const kb = (b.t1.id < b.t2.id ? b.t1.id+'|'+b.t2.id : b.t2.id+'|'+b.t1.id);
-        return ka < kb ? -1 : (ka > kb ? 1 : 0);
-      });
-      const chosen = remaining[0];
-      chosen.round = roundsNeeded;
-      chosen.court = c;
-      lastPlayedRound[chosen.t1.id] = roundsNeeded;
-      lastPlayedRound[chosen.t2.id] = roundsNeeded;
-    }
-  }
-
-  return fixturesCopy;
-}
-
-/* ---------- Master generateFixtures() chooses allocator ---------- */
+/* ---------- Fixtures generation (deterministic Berger-like + placement + rebalancer + fixes) ---------- */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
+  fixtures = [];
   const rrType = $('rrType').value;
   const courts = clampInt($('numCourts').value,1);
-  const orderedTeams = teams.slice().sort((a,b)=> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
+
+  /*************************************************************************
+   * 1) Build deterministic list of allowed pairings (no randomness)
+   *************************************************************************/
   const allPairs = [];
+  const orderedTeams = teams.slice().sort((a,b)=> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
 
   if (rrType === 'within') {
     const groups = {};
@@ -933,7 +802,8 @@ function generateFixtures(){
       const list = groups[g];
       for (let i=0;i<list.length;i++){
         for (let j=i+1;j<list.length;j++){
-          allPairs.push({ id: generateId('p'), t1: list[i], t2: list[j] });
+          const t1=list[i], t2=list[j];
+          allPairs.push({ id: generateId('p'), t1, t2 });
         }
       }
     });
@@ -943,34 +813,324 @@ function generateFixtures(){
         allPairs.push({ id: generateId('p'), t1: orderedTeams[i], t2: orderedTeams[j] });
       }
     }
-  } else { // club vs club
+  } else if (rrType === 'club') {
     for (let i=0;i<orderedTeams.length;i++){
       for (let j=i+1;j<orderedTeams.length;j++){
-        const a=orderedTeams[i], b=orderedTeams[j];
-        const ca=(a.club||'').trim() || '__', cb=(b.club||'').trim() || '__';
+        const a = orderedTeams[i], b = orderedTeams[j];
+        const ca = (a.club || '').trim() || '__UNASSIGNED__';
+        const cb = (b.club || '').trim() || '__UNASSIGNED__';
         if (ca !== cb) allPairs.push({ id: generateId('p'), t1: a, t2: b });
       }
     }
   }
 
   allPairs.sort((x,y) => {
-    const kx = x.t1.id < x.t2.id ? (x.t1.id + '|' + x.t2.id) : (x.t2.id + '|' + x.t1.id);
-    const ky = y.t1.id < y.t2.id ? (y.t1.id + '|' + y.t2.id) : (y.t2.id + '|' + y.t1.id);
-    return kx < ky ? -1 : (kx > ky ? 1 : 0);
+    const aKey = x.t1.id < x.t2.id ? x.t1.id + '|' + x.t2.id : x.t2.id + '|' + x.t1.id;
+    const bKey = y.t1.id < y.t2.id ? y.t1.id + '|' + y.t2.id : y.t2.id + '|' + y.t1.id;
+    if (aKey < bKey) return -1;
+    if (aKey > bKey) return 1;
+    return 0;
   });
 
-  const baseFixtures = allPairs.map((p, idx) => ({ id: p.id, matchNum: idx+1, t1: p.t1, t2: p.t2, round: null, court: null }));
+  fixtures = allPairs.map((p, idx) => ({ id: p.id, matchNum: idx+1, t1: p.t1, t2: p.t2, court: null, round: null, group: null }));
 
-  const mode = getPlacementMode();
-  let placed;
-  if (mode === 'aggressive') {
-    placed = generateFixturesBalancedAllocator(baseFixtures, courts);
-  } else {
-    placed = generateFixturesUtilisationFirst(baseFixtures, courts);
-  }
+  /*************************************************************************
+   * 2) Deterministic placement pass
+   *************************************************************************/
+  (function deterministicPlacement() {
+    const courtsCount = courts;
+    const assignedRoundsCount = {};
+    const lastRoundPlayed = {};
+    teams.forEach(t => { assignedRoundsCount[t.id] = 0; });
 
-  fixtures = placed.map((f, idx) => ({ ...f, matchNum: idx+1 }));
-  renderFixtures(); $('fixturesCard').style.display='block'; $('summaryCard').style.display='none'; updateBanner('Fixtures'); scheduleAutoSave();
+    const unassigned = fixtures.slice();
+
+    let roundIndex = 0;
+    while (unassigned.length) {
+      const usedThisRound = new Set();
+      let placedInRound = 0;
+
+      for (let c = 0; c < courtsCount; c++) {
+        const candidates = unassigned.filter(f => !usedThisRound.has(f.t1.id) && !usedThisRound.has(f.t2.id));
+        if (!candidates.length) break;
+
+        // scoring constants (tuned)
+        const LARGE = 10000;
+        const BACK_TO_BACK_PENALTY = 8000; // stronger avoidance of immediate back-to-back
+        const GAP_WEIGHT = 3; // prefer larger gaps more strongly
+
+        // deterministic court rotation tie-breaker base: use lowest team id sum and round index to pick court
+        const scored = candidates.map((f, idx) => {
+          const a = f.t1.id, b = f.t2.id;
+          const combinedAssigned = (assignedRoundsCount[a] || 0) + (assignedRoundsCount[b] || 0);
+          const aLast = (lastRoundPlayed[a] !== undefined) ? lastRoundPlayed[a] : -999;
+          const bLast = (lastRoundPlayed[b] !== undefined) ? lastRoundPlayed[b] : -999;
+          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast);
+          const backPenalty = ((aLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0) + ((bLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0);
+          const key = (f.t1.id < f.t2.id) ? (f.t1.id + '|' + f.t2.id) : (f.t2.id + '|' + f.t1.id);
+          // Add deterministic court rotation influence: prefer matches where (hash + round) maps closer to current court
+          const teamHash = (String(f.t1.id).split('').reduce((s,ch)=>s+ch.charCodeAt(0),0) + String(f.t2.id).split('').reduce((s,ch)=>s+ch.charCodeAt(0),0));
+          const rotationPref = Math.abs(((teamHash + roundIndex) % courtsCount) - c);
+          const score = combinedAssigned * LARGE + backPenalty - (combinedGap * GAP_WEIGHT) + rotationPref;
+          return { f, score, key, rotationPref };
+        });
+
+        scored.sort((x,y) => x.score - y.score || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
+        const chosen = scored[0].f;
+
+        chosen.round = roundIndex + 1;
+        chosen.court = c + 1;
+
+        usedThisRound.add(chosen.t1.id);
+        usedThisRound.add(chosen.t2.id);
+        assignedRoundsCount[chosen.t1.id] = (assignedRoundsCount[chosen.t1.id] || 0) + 1;
+        assignedRoundsCount[chosen.t2.id] = (assignedRoundsCount[chosen.t2.id] || 0) + 1;
+        lastRoundPlayed[chosen.t1.id] = roundIndex;
+        lastRoundPlayed[chosen.t2.id] = roundIndex;
+
+        const idx = unassigned.indexOf(chosen);
+        if (idx >= 0) unassigned.splice(idx,1);
+        placedInRound++;
+      }
+
+      if (placedInRound === 0 && unassigned.length) {
+        const f = unassigned.shift();
+        f.round = roundIndex + 1;
+        f.court = 1;
+        assignedRoundsCount[f.t1.id] = (assignedRoundsCount[f.t1.id] || 0) + 1;
+        assignedRoundsCount[f.t2.id] = (assignedRoundsCount[f.t2.id] || 0) + 1;
+        lastRoundPlayed[f.t1.id] = roundIndex;
+        lastRoundPlayed[f.t2.id] = roundIndex;
+      }
+
+      roundIndex++;
+    }
+  })();
+
+  /*************************************************************************
+   * 2.5) Left-shift fill: move matches earlier into idle slots deterministically
+   *************************************************************************/
+  (function leftShiftFillIdleSlots(){
+    if (!fixtures.length) return;
+    const courtsCount = courts;
+    // compute current max round
+    let maxRound = Math.max(...fixtures.map(f => f.round || 0), 0);
+    // iterate rounds from earliest to latest and try to move any match in later rounds into earliest idle slots
+    // deterministic ordering of candidates ensures reproducibility
+    for (let targetR = 1; targetR <= maxRound; targetR++){
+      for (let targetCourt = 1; targetCourt <= courtsCount; targetCourt++){
+        // if slot already occupied, continue
+        if (fixtures.find(f => f.round === targetR && f.court === targetCourt)) continue;
+        // find the earliest match in rounds > targetR that can be moved here without causing team conflicts
+        const candidates = fixtures.filter(f => f.round > targetR).sort((a,b) => (a.round - b.round) || (a.court - b.court) || (a.matchNum - b.matchNum));
+        for (const cand of candidates) {
+          // check team conflicts in targetR
+          const teamsAtTargetR = new Set();
+          fixtures.forEach(f => { if (f.round === targetR) { teamsAtTargetR.add(f.t1.id); teamsAtTargetR.add(f.t2.id); } });
+          if (teamsAtTargetR.has(cand.t1.id) || teamsAtTargetR.has(cand.t2.id)) continue;
+          // move cand into target slot
+          cand.round = targetR;
+          cand.court = targetCourt;
+          break;
+        }
+      }
+    }
+  })();
+
+  /*************************************************************************
+   * 3) Deterministic rebalancer (increased effort, two passes)
+   *************************************************************************/
+  (function deterministicRebalanceMultiPass() {
+    if (!fixtures || fixtures.length < 2) return;
+
+    function computeMetrics(fixturesList) {
+      const teamRounds = {};
+      teams.forEach(t => teamRounds[t.id] = []);
+      fixturesList.forEach(f => {
+        if (f.round) {
+          teamRounds[f.t1.id].push(f.round);
+          teamRounds[f.t2.id].push(f.round);
+        }
+      });
+      let totalBackToBacks = 0;
+      let maxIdle = 0;
+      Object.keys(teamRounds).forEach(tid => {
+        const arr = teamRounds[tid].slice().sort((a,b)=>a-b);
+        for (let i=1;i<arr.length;i++){
+          if (arr[i] === arr[i-1] + 1) totalBackToBacks++;
+        }
+        for (let i=1;i<arr.length;i++){
+          const gap = arr[i] - arr[i-1] - 1;
+          if (gap > maxIdle) maxIdle = gap;
+        }
+      });
+      return { totalBackToBacks, maxIdle };
+    }
+    function penaltyOf(metrics) { return metrics.totalBackToBacks * 1000 + metrics.maxIdle * 10; }
+
+    let currentMetrics = computeMetrics(fixtures);
+    let currentPenalty = penaltyOf(currentMetrics);
+
+    const orderedFixtures = fixtures.slice().sort((a,b)=>{
+      if ((a.round||0) !== (b.round||0)) return (a.round||0) - (b.round||0);
+      if ((a.court||0) !== (b.court||0)) return (a.court||0) - (b.court||0);
+      return a.matchNum - b.matchNum;
+    });
+
+    const MAX_SWAPS = 400;
+    const PASSES = 2;
+    for (let pass=0; pass<PASSES; pass++){
+      let swapsDone = 0;
+      for (let i=0; i<orderedFixtures.length && swapsDone < MAX_SWAPS; i++){
+        for (let j=i+1; j<orderedFixtures.length && swapsDone < MAX_SWAPS; j++){
+          const f1 = orderedFixtures[i];
+          const f2 = orderedFixtures[j];
+          if (!f1.round || !f2.round) continue;
+
+          const newF1Round = f2.round;
+          const newF2Round = f1.round;
+          const newF1Court = f2.court;
+          const newF2Court = f1.court;
+
+          const roundTeams = {};
+          fixtures.forEach(f => {
+            if (f === f1 || f === f2) return;
+            if (!f.round) return;
+            if (!roundTeams[f.round]) roundTeams[f.round] = new Set();
+            roundTeams[f.round].add(f.t1.id); roundTeams[f.round].add(f.t2.id);
+          });
+
+          if (!roundTeams[newF1Round]) roundTeams[newF1Round] = new Set();
+          if (roundTeams[newF1Round].has(f1.t1.id) || roundTeams[newF1Round].has(f1.t2.id)) continue;
+          if (!roundTeams[newF2Round]) roundTeams[newF2Round] = new Set();
+          if (roundTeams[newF2Round].has(f2.t1.id) || roundTeams[newF2Round].has(f2.t2.id)) continue;
+
+          const cloned = fixtures.map(ff => {
+            if (ff === f1) return {...ff, round: newF1Round, court: newF1Court};
+            if (ff === f2) return {...ff, round: newF2Round, court: newF2Court};
+            return ff;
+          });
+
+          const newMetrics = computeMetrics(cloned);
+          const newPenalty = penaltyOf(newMetrics);
+
+          if (newPenalty < currentPenalty) {
+            f1.round = newF1Round; f1.court = newF1Court;
+            f2.round = newF2Round; f2.court = newF2Court;
+            currentPenalty = newPenalty;
+            currentMetrics = newMetrics;
+            swapsDone++;
+          }
+        }
+      }
+    }
+  })();
+
+  /*************************************************************************
+   * 4) Targeted repair: ensure no team has >=2 consecutive plays if it can be fixed
+   *************************************************************************/
+  (function repairConsecutivePlays(){
+    if (!fixtures.length) return;
+    // build team -> sorted rounds
+    function buildTeamRoundsMap() {
+      const map = {};
+      teams.forEach(t => map[t.id] = []);
+      fixtures.forEach(f => {
+        if (f.round) { map[f.t1.id].push(f.round); map[f.t2.id].push(f.round); }
+      });
+      Object.keys(map).forEach(k => map[k].sort((a,b)=>a-b));
+      return map;
+    }
+    let teamRounds = buildTeamRoundsMap();
+
+    // find teams with >=2 consecutive pairs (i.e., arr[i] == arr[i-1]+1)
+    const offenders = [];
+    Object.keys(teamRounds).forEach(tid => {
+      const arr = teamRounds[tid];
+      for (let i=1;i<arr.length;i++){
+        if (arr[i] === arr[i-1] + 1) { offenders.push({tid, roundEarlier:arr[i-1], roundLater:arr[i]}); }
+      }
+    });
+
+    // deterministic: sort offenders by team id then earliest later round
+    offenders.sort((a,b) => a.tid < b.tid ? -1 : (a.tid > b.tid ? 1 : (a.roundLater - b.roundLater)));
+
+    // For each offender, try to move the later match to nearest available round or swap deterministically
+    const courtsCount = courts;
+    const MAX_ATTEMPTS_PER_OFFENDER = 6;
+    offenders.forEach(off => {
+      const tid = off.tid;
+      const laterRound = off.roundLater;
+      // find the match (fixture) in laterRound involving tid
+      const laterMatch = fixtures.find(f => f.round === laterRound && (f.t1.id === tid || f.t2.id === tid));
+      if (!laterMatch) return;
+      // try moving it to nearest round between (earlierRound+2) .. (laterRound-1) or laterRound+1..laterRound+MAX_ATTEMPTS
+      const earlierRound = off.roundEarlier;
+      let moved = false;
+      // attempt to find idle earlier slot first
+      for (let r = earlierRound+2; r < laterRound && !moved; r++){
+        for (let c = 1; c <= courtsCount; c++){
+          const occupied = fixtures.find(f => f.round === r && f.court === c);
+          if (occupied) continue;
+          // check team conflict: no team of laterMatch should be in round r
+          const conflict = fixtures.some(f => f.round === r && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
+          if (conflict) continue;
+          // move
+          laterMatch.round = r; laterMatch.court = c; moved = true; break;
+        }
+      }
+      if (moved) return;
+      // attempt to swap with a deterministically chosen candidate in a nearby round to reduce consecutive instance
+      for (let delta=1; delta<=MAX_ATTEMPTS_PER_OFFENDER && !moved; delta++){
+        // try earlier side first: move to laterRound-delta
+        const candRound = laterRound - delta;
+        if (candRound > earlierRound + 1) {
+          // pick candidate match to swap with: deterministic lowest matchNum in that round that doesn't introduce conflicts
+          const candidates = fixtures.filter(f => f.round === candRound).sort((a,b)=>a.matchNum - b.matchNum);
+          for (const cand of candidates){
+            // ensure swapping cand <-> laterMatch won't create team duplicates in the target rounds
+            const teamsIfCandMoved = fixtures.filter(ff => ff !== cand && ff !== laterMatch).reduce((s,ff) => {
+              if (ff.round === candRound) s[candRound] = s[candRound]||new Set();
+              if (ff.round === laterMatch.round) s[laterMatch.round] = s[laterMatch.round]||new Set();
+              return s;
+            }, {});
+            // simpler conflict checks: ensure no team collision in candRound if laterMatch moved there, and in laterRound if cand moved there
+            const conflictA = fixtures.some(f => f !== laterMatch && f.round === candRound && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
+            const conflictB = fixtures.some(f => f !== cand && f.round === laterMatch.round && (f.t1.id === cand.t1.id || f.t1.id === cand.t2.id || f.t2.id === cand.t1.id || f.t2.id === cand.t2.id));
+            if (conflictA || conflictB) continue;
+            // perform deterministic swap
+            const tmpRound = cand.round, tmpCourt = cand.court;
+            cand.round = laterMatch.round; cand.court = laterMatch.court;
+            laterMatch.round = tmpRound; laterMatch.court = tmpCourt;
+            moved = true; break;
+          }
+        }
+        // try later side: move to laterRound + delta
+        if (moved) break;
+        const candRound2 = laterRound + delta;
+        // find idle slot in candRound2 first
+        for (let c=1;c<=courtsCount && !moved;c++){
+          const occupied = fixtures.find(f => f.round === candRound2 && f.court === c);
+          if (occupied) continue;
+          const conflict = fixtures.some(f => f.round === candRound2 && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
+          if (conflict) continue;
+          laterMatch.round = candRound2; laterMatch.court = c; moved = true; break;
+        }
+      }
+      // done attempts
+    });
+
+    // final rebuild not required here; it's done by mutate-in-place above
+  })();
+
+  /*************************************************************************
+   * Done: render fixtures
+   *************************************************************************/
+  renderFixtures();
+  $('fixturesCard').style.display='block';
+  $('summaryCard').style.display='none';
+  updateBanner('Fixtures');
+  scheduleAutoSave();
 }
 
 /* ---------- Render fixtures (enter-scores view) ---------- */
@@ -991,8 +1151,8 @@ function renderFixtures(){
       cols.forEach(c => { c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='12px'; });
       roundsMap[r].forEach(f=>{
         const card = document.createElement('div'); card.className='match-card';
-        const players1 = f.t1.players ? f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ') : '';
-        const players2 = f.t2.players ? f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ') : '';
+        const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
@@ -1008,8 +1168,8 @@ function renderFixtures(){
       inner.style.display='grid'; inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))'; inner.style.gap='12px';
       roundsMap[r].forEach(f=>{
         const card = document.createElement('div'); card.className='match-card';
-        const players1 = f.t1.players ? f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ') : '';
-        const players2 = f.t2.players ? f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ') : '';
+        const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
@@ -1059,10 +1219,10 @@ function renderScheduleView(){
       const match = fixtures.find(f => (f.round === r) && (f.court === c));
       if (match){
         const p1 = document.createElement('div'); p1.style.marginBottom='6px';
-        p1.innerHTML = `<div style="font-weight:700">${match.t1.name}</div><div style="font-size:12px;color:var(--muted)">${match.t1.players?match.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '):''}</div>`;
+        p1.innerHTML = `<div style="font-weight:700">${match.t1.name}</div><div style="font-size:12px;color:var(--muted)">${match.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
         const vs = document.createElement('div'); vs.style.textAlign='center'; vs.style.fontWeight='800'; vs.style.margin='8px 0'; vs.textContent='vs';
         const p2 = document.createElement('div');
-        p2.innerHTML = `<div style="font-weight:700">${match.t2.name}</div><div style="font-size:12px;color:var(--muted)">${match.t2.players?match.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '):''}</div>`;
+        p2.innerHTML = `<div style="font-weight:700">${match.t2.name}</div><div style="font-size:12px;color:var(--muted)">${match.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
         courtBlock.appendChild(p1); courtBlock.appendChild(vs); courtBlock.appendChild(p2);
       } else {
         const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.fontSize='13px'; empty.textContent = '— idle —';
@@ -1080,38 +1240,55 @@ function generateRankings(){
   const teamStats = {};
   teams.forEach(t=> teamStats[t.id]={t, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0});
 
+  let tieDetected = false;
+  let tieFixtureId = null;
+
   fixtures.forEach(f=>{
     const s1 = Number($(`s1-${f.id}`)?.value||0);
     const s2 = Number($(`s2-${f.id}`)?.value||0);
-    if (s1===0 && s2===0) return;
-    if (s1===s2) { showToast('No ties allowed!','warn'); return; }
+    if (s1 === 0 && s2 === 0) return;
+    if (s1 === s2) { tieDetected = true; tieFixtureId = f.id; return; }
+    if (!teamStats[f.t1.id]) teamStats[f.t1.id] = {t: f.t1, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
+    if (!teamStats[f.t2.id]) teamStats[f.t2.id] = {t: f.t2, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
     teamStats[f.t1.id].played++;
     teamStats[f.t2.id].played++;
     teamStats[f.t1.id].pf += s1; teamStats[f.t1.id].pa += s2;
     teamStats[f.t2.id].pf += s2; teamStats[f.t2.id].pa += s1;
-    if (s1>s2){
+    if (s1 > s2){
       teamStats[f.t1.id].won++; teamStats[f.t1.id].pts += 3; teamStats[f.t2.id].lost++;
     } else {
       teamStats[f.t2.id].won++; teamStats[f.t2.id].pts += 3; teamStats[f.t1.id].lost++;
     }
   });
 
-  Object.values(teamStats).forEach(s=> s.pd = s.pf - s.pa );
+  if (tieDetected){
+    showToast('No ties allowed — please fix tied match scores before generating rankings.','warn');
+    if (tieFixtureId && $(`s1-${tieFixtureId}`)) { $(`s1-${tieFixtureId}`).focus(); }
+    return;
+  }
+
+  Object.values(teamStats).forEach(s => { s.pd = (s.pf || 0) - (s.pa || 0); });
+  rankings = {};
+  Object.values(teamStats).forEach(s => { rankings[s.t.id] = s; });
 
   const sorted = Object.values(teamStats).sort((a,b)=>{
-    if (b.pts !== a.pts) return b.pts - a.pts;
-    if (b.pd !== a.pd) return b.pd - a.pd;
-    if (b.pf !== a.pf) return b.pf - a.pf;
+    if ((b.pts||0) !== (a.pts||0)) return (b.pts||0) - (a.pts||0);
+    if ((b.pd||0) !== (a.pd||0)) return (b.pd||0) - (a.pd||0);
+    if ((b.pf||0) !== (a.pf||0)) return (b.pf||0) - (a.pf||0);
     return 0;
   });
 
-  rankings = {};
-  sorted.forEach((s,i)=> rankings[s.t.id] = { pos: i+1, stats: s });
-
   let html = '<table class="white-table"><thead><tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>';
-  sorted.forEach((s,i)=>{ const players = s.t.players? s.t.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '):''; html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td><td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`; });
+  sorted.forEach((s,i)=>{
+    const players = (s.t.players||[]).map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+    html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td><td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`;
+  });
   html += '</tbody></table>';
-  $('rankingsInner').innerHTML = html; $('rankingsCard').style.display='block'; $('fixturesCard').style.display='none'; updateBanner('Rankings');
+
+  $('rankingsInner').innerHTML = html;
+  $('rankingsCard').style.display = 'block';
+  $('fixturesCard').style.display = 'none';
+  updateBanner('Rankings');
 }
 
 /* ---------- Knockouts ---------- */
@@ -1141,7 +1318,12 @@ function proceedToKnockouts(){
 function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML=''; const q = knockout.qualifiers || []; if (knockout.stages===8){ const matches=[{t1:q[0],t2:q[7]},{t1:q[3],t2:q[4]},{t1:q[1],t2:q[6]},{t1:q[2],t2:q[5]}]; inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>'; inner.innerHTML += renderKOBracket(matches,'qf'); knockout.qf = matches; } if (knockout.stages>=4){ inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>'; const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]]; const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]]; inner.innerHTML += renderKOBracket([sf1,sf2],'sf'); } inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>'; inner.innerHTML += renderKOBracket([null],'final'); if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third'); }
 function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
-/* ---------- Exports (CSV/DUPR placeholders) ---------- */
+/* ---------- Exports & DUPR helpers (unchanged) ---------- */
+function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
+function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
+function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
+function printSchedule(){ window.print(); }
+
 function csvEscape(value) {
   if (value === null || value === undefined || value === '') return '';
   const s = String(value);
@@ -1201,25 +1383,28 @@ function buildDupRRowFromFixture(f){
   } else {
     dateStr = formatYMD(new Date());
   }
+
   const Aplayers = f.t1 && Array.isArray(f.t1.players) ? f.t1.players : [];
   const Bplayers = f.t2 && Array.isArray(f.t2.players) ? f.t2.players : [];
+
   const A1 = Aplayers[0] || { name: f.t1.name || '' };
   const A2 = Aplayers[1] || { name: (Aplayers[0] ? '' : f.t1.name) };
   const B1 = Bplayers[0] || { name: f.t2.name || '' };
   const B2 = Bplayers[1] || { name: (Bplayers[0] ? '' : f.t2.name) };
+
   const duprEnabled = !!$('enableDUPR')?.checked;
   const A1dupr = duprEnabled ? (A1.dupr || A1.duprId || A1.dupr_id || '') : '';
   const A2dupr = duprEnabled ? (A2.dupr || A2.duprId || A2.dupr_id || '') : '';
   const B1dupr = duprEnabled ? (B1.dupr || B1.duprId || B1.dupr_id || '') : '';
   const B2dupr = duprEnabled ? (B2.dupr || B2.duprId || B2.dupr_id || '') : '';
+
   const A1ext = ''; const A2ext = ''; const B1ext = ''; const B2ext = '';
+
   const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value.trim() : '';
   const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value.trim() : '';
-  const games = [
-    (s1 || s2) ? s1 : '',
-    (s1 || s2) ? s2 : ''
-  ];
+  const games = [ s1 || '', s2 || '' ];
   while (games.length < 10) games.push('');
+
   const row = [
     '', '', '',
     matchType, eventName, dateStr,
@@ -1290,30 +1475,9 @@ function exportDupRCSV(){
   showToast('DUPR CSV exported','success');
 }
 
-/* ---------- Exports placeholders ---------- */
-function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]||{played:0,won:0,lost:0,pf:0,pa:0}; const pd = s.pf - s.pa; const pts = (s.won||0)*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
+/* ---------- Helpers used across UI ---------- */
+function updateBanner(stage){ const stageTextEl = document.getElementById('stageText'); if (stageTextEl) { stageTextEl.textContent = `Current Stage: ${stage}`; return; } const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
 
-function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
-function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
-function printSchedule(){ window.print(); }
-
-/* ---------- Helper patches ---------- */
-function updateQualifierDefaults(){
-  try {
-    const ng = clampInt($('numGroups').value, 1);
-    const qualSel = $('qualPerGroup');
-    if (!qualSel) return;
-    const cur = Number(qualSel.value) || 0;
-    if (cur > ng) {
-      if (cur > 0) qualSel.value = String(Math.max(1, Math.floor(ng / 2)) || 1);
-    }
-  } catch(e){
-    console.warn('updateQualifierDefaults error', e);
-  }
-}
-function onQualPerGroupManual(){ return; }
-
-/* ---------- Qual visual ---------- */
 function updateQualVisual(){
   try {
     const container = $('qualContainer');
