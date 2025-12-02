@@ -1005,37 +1005,8 @@ function onQualPerGroupManual(){
   return;
 }
 
-function duprExportTemplateCsvLines(){
-  const DUPR_HEADERS = [
-    "<leave empty>", "<leave empty>", "<leave empty>",
-    "matchType","event","date",
-    "playerA1","playerA1DuprId","playerA1ExternalId",
-    "playerA2","playerA2DuprId","playerA2ExternalId",
-    "playerB1","playerB1DuprId","playerB1ExternalId",
-    "playerB2","playerB2DuprId","playerB2ExternalId",
-    "<leave empty>",
-    "teamAGame1","teamBGame1",
-    "teamAGame2","teamBGame2",
-    "teamAGame3","teamBGame3",
-    "teamAGame4","teamBGame4",
-    "teamAGame5","teamBGame5"
-  ];
-  const sampleRow = [
-    '', '', '', 'Doubles', 'Example Event', formatYMD(new Date()),
-    'Vignesh S', '', '', 'Arjun K', '', '', 'Megh K', '', '', 'Pranav R', '', '', '',
-    '11','6','9','11','11','8','','',''
-  ];
-  return [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
-}
+/* ---------- DUPR helpers & export (uses saved snapshot if present) ---------- */
 
-/* ---------- DUPR CSV Export Implementation (integrated) ---------- */
-
-/*
-  Creates a DUPR-compatible CSV using fixtures[] and entered scores.
-  - Header order exactly as requested.
-  - Uses per-match single score inputs (s1-<id>, s2-<id>) and maps to teamAGame1/teamBGame1.
-  - Pulls DUPR IDs if enableDUPR is checked and player objects have `.dupr` fields.
-*/
 function csvEscape(value) {
   if (value === null || value === undefined || value === '') return '';
   const s = String(value);
@@ -1055,8 +1026,48 @@ function formatYMD(d){
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Use saved tournament snapshot gameType if present, otherwise use UI control
+function getTournamentGameType() {
+  const active = getActiveTournament();
+  if (active && active.snapshot && active.snapshot.settings && active.snapshot.settings.gameType) {
+    return active.snapshot.settings.gameType; // 'singles' or 'doubles'
+  }
+  // fallback to current control
+  return ($('gameType') && $('gameType').value) ? $('gameType').value : 'doubles';
+}
+
+function duprExportTemplateCsvLines(){
+  const DUPR_HEADERS = [
+    "<leave empty>", "<leave empty>", "<leave empty>",
+    "matchType","event","date",
+    "playerA1","playerA1DuprId","playerA1ExternalId",
+    "playerA2","playerA2DuprId","playerA2ExternalId",
+    "playerB1","playerB1DuprId","playerB1ExternalId",
+    "playerB2","playerB2DuprId","playerB2ExternalId",
+    "<leave empty>",
+    "teamAGame1","teamBGame1",
+    "teamAGame2","teamBGame2",
+    "teamAGame3","teamBGame3",
+    "teamAGame4","teamBGame4",
+    "teamAGame5","teamBGame5"
+  ];
+
+  // matchType letter based on saved snapshot (preferred) then UI control ('S' or 'D')
+  const gtype = getTournamentGameType();
+  const mt = (gtype === 'singles') ? 'S' : 'D';
+
+  const sampleRow = [
+    '', '', '', mt, 'Example Event', formatYMD(new Date()),
+    'Player A1', '', '', 'Player A2', '', '', 'Player B1', '', '', 'Player B2', '', '', '',
+    '11','6','9','11','11','8','','',''
+  ];
+  return [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
+}
+
 function buildDupRRowFromFixture(f){
-  const matchType = 'Doubles';
+  // matchType should be single letter: 'S' or 'D' — use saved snapshot if present
+  const gtype = getTournamentGameType();
+  const matchType = (gtype === 'singles') ? 'S' : 'D';
   const eventName = ($('tourneyName') && $('tourneyName').value.trim()) || (getActiveTournament() ? getActiveTournament().name : '') || '';
   const active = getActiveTournament();
   let dateStr = '';
