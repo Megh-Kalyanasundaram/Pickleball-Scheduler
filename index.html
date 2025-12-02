@@ -37,7 +37,9 @@
     grid-template-columns:1fr;
     gap:var(--gap);
   }
-  @media (min-width:900px){ .grid{grid-template-columns:1fr 360px;} }
+  @media (min-width:900px){
+    .grid{grid-template-columns:1fr 360px;}
+  }
 
   .card{
     background:var(--card-bg);
@@ -46,7 +48,12 @@
     padding:16px;
     box-shadow:var(--shadow);
   }
-  .title{ font-weight:700; color:#eaf4ff; margin:0 0 12px; font-size:15px; }
+  .title{
+    font-weight:700;
+    color:#eaf4ff;
+    margin:0 0 12px;
+    font-size:15px;
+  }
 
   /* Unified form controls */
   input[type="text"], input[type="number"], select, .score-input {
@@ -74,80 +81,216 @@
     background-position:right 12px center;
     color:var(--card-text);
   }
-  /* option styling (note: appearance depends on OS/browser) */
   select option{ color:#0f2435; background:#ffffff; }
   select:focus option:checked, select option:hover{ background:var(--gold-hover); color:#102238; }
 
   .score-input { width:76px; text-align:center; font-weight:600; }
 
-  label{ display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; font-weight:500; }
-  .form-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--gap); align-items:end; }
-  .form-item{ display:flex; flex-direction:column; }
-  .checkbox-row{ display:flex; align-items:center; gap:10px; margin-top:8px; }
-  .checkbox-row input[type="checkbox"]{ width:18px;height:18px;cursor:pointer; }
+  label{
+    display:block;
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  .form-row{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:var(--gap);
+    align-items:end;
+  }
+  .form-item{
+    display:flex;
+    flex-direction:column;
+  }
+  .checkbox-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:8px;
+  }
+  .checkbox-row input[type="checkbox"]{
+    width:18px;height:18px;cursor:pointer;
+  }
 
-  .btn{ height:var(--input-height); padding:0 16px; background:var(--gold); color:#102238; border:none; border-radius:8px; font-weight:700; font-size:13.5px; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+  .btn{
+    height:var(--input-height);
+    padding:0 16px;
+    background:var(--gold);
+    color:#102238;
+    border:none;
+    border-radius:8px;
+    font-weight:700;
+    font-size:13.5px;
+    cursor:pointer;
+    transition:all 0.2s;
+    white-space:nowrap;
+  }
   .btn:hover{ background:var(--gold-hover); transform:translateY(-1px); }
-  .btn.ghost{ background:transparent; color:var(--card-text); border:1px solid rgba(255,255,255,0.12); }
+  .btn.ghost{
+    background:transparent;
+    color:var(--card-text);
+    border:1px solid rgba(255,255,255,0.12);
+  }
   .btn.small{ height:36px; font-size:12.5px; padding:0 12px; }
   .btn.block{ width:100%; }
 
-  .action-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; justify-content:flex-end; }
+  .action-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:16px;
+    justify-content:flex-end;
+  }
   .action-row .btn{ flex:1; max-width:180px; }
-  @media (min-width:480px){ .action-row .btn{ flex:none; } }
+  @media (min-width:480px){
+    .action-row .btn{ flex:none; }
+  }
 
-  .match-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:var(--gap); margin-top:12px; }
-  .match-card{ background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:14px; }
-  .match-title{ font-size:13px; font-weight:700; color:#eaf4ff; margin-bottom:10px; }
-  .team-label{ font-weight:700; font-size:14px; color:#eaf4ff; }
-  .team-players{ font-size:12px; color:var(--muted); margin-top:4px; line-height:1.3; }
+  .match-grid{
+    display:grid;
+    gap:var(--gap);
+    margin-top:12px;
+  }
+  .match-card{
+    background:rgba(255,255,255,0.025);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:10px;
+    padding:14px;
+  }
+  .match-title{
+    font-size:13px;
+    font-weight:700;
+    color:#eaf4ff;
+    margin-bottom:10px;
+  }
+  .team-label{
+    font-weight:700;
+    font-size:14px;
+    color:#eaf4ff;
+  }
+  .team-players{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:4px;
+    line-height:1.3;
+  }
 
-  .white-table{ width:100%; border-collapse:collapse; background:var(--white); color:#102238; border-radius:8px; overflow:hidden; margin-top:12px; font-size:13px; }
-  .white-table th{ background:#f1f5f8; color:#667085; font-weight:700; text-align:left; padding:10px 8px; }
-  .white-table td{ padding:8px; border-bottom:1px solid #e6eaee; }
+  .white-table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--white);
+    color:#102238;
+    border-radius:8px;
+    overflow:hidden;
+    margin-top:12px;
+    font-size:13px;
+  }
+  .white-table th{
+    background:#f1f5f8;
+    color:#667085;
+    font-weight:700;
+    text-align:left;
+    padding:10px 8px;
+  }
+  .white-table td{
+    padding:8px;
+    border-bottom:1px solid #e6eaee;
+  }
 
-  .toast-container{ position:fixed; z-index:12000; right:16px; bottom:16px; display:flex; flex-direction:column; gap:10px; align-items:flex-end; }
-  @media (max-width:600px){ .toast-container{ left:50%; right:auto; transform:translateX(-50%); align-items:center; } }
-  .toast{ min-width:260px; max-width:420px; background:var(--toast-bg); color:var(--toast-text); border-radius:10px; padding:12px 16px; box-shadow:0 12px 32px rgba(0,0,0,0.3); display:flex; gap:12px; align-items:center; animation:toastIn 300ms ease forwards; position:relative; overflow:hidden; }
-  .toast .accent{ width:6px; height:100%; background:var(--gold); border-radius:4px; position:absolute; left:0; top:0; }
+  .toast-container{
+    position:fixed;
+    z-index:12000;
+    right:16px;
+    bottom:16px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:flex-end;
+  }
+  @media (max-width:600px){
+    .toast-container{ left:50%; right:auto; transform:translateX(-50%); align-items:center; }
+  }
+  .toast{
+    min-width:260px;
+    max-width:420px;
+    background:var(--toast-bg);
+    color:var(--toast-text);
+    border-radius:10px;
+    padding:12px 16px;
+    box-shadow:0 12px 32px rgba(0,0,0,0.3);
+    display:flex;
+    gap:12px;
+    align-items:center;
+    animation:toastIn 300ms ease forwards;
+    position:relative;
+    overflow:hidden;
+  }
+  .toast .accent{
+    width:6px; height:100%; background:var(--gold); border-radius:4px; position:absolute; left:0; top:0;
+  }
   @keyframes toastIn{ from{opacity:0;transform:translateY(10px) scale(0.98);} to{opacity:1;transform:none;} }
   @keyframes toastOut{ to{opacity:0;transform:translateY(-10px);} }
   .toast.fadeOut{ animation:toastOut 240ms ease forwards; }
 
-  footer{ margin-top:24px; text-align:center; font-size:12px; color:var(--muted); }
-  @media (max-width:480px){ .form-row{ grid-template-columns:1fr; } .match-grid{ grid-template-columns:1fr; } .score-input{ width:64px; } }
+  footer{
+    margin-top:24px;
+    text-align:center;
+    font-size:12px;
+    color:var(--muted);
+  }
+  @media (max-width:480px){
+    .form-row{ grid-template-columns:1fr; }
+    .match-grid{ grid-template-columns:1fr; }
+    .score-input{ width:64px; }
+  }
 
-  /* overlay box helper */
   .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:9999; background:rgba(2,6,15,0.45); padding:20px; }
   .dialog-box{ width: min(680px, 100%); max-width:680px; background:var(--card-bg); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); max-height:88vh; overflow:auto; box-sizing:border-box; margin:0 auto; }
   @media (max-width:600px){ .dialog-box{ width: calc(100% - 32px); padding:10px; border-radius:var(--radius); } }
 
-  /* Mobile tweaks */
+  /* Mobile-specific: ensure Setup card fits on common phones */
   @media (max-width:600px) {
-    .setup-card{ padding:10px; margin-bottom:8px; }
+    .setup-card{
+      padding:10px;
+      margin-bottom:8px;
+    }
     .setup-card .title{ font-size:14px; margin-bottom:8px; }
     .setup-card label{ font-size:12px; margin-bottom:4px; }
-    .setup-card input[type="text"], .setup-card input[type="number"], .setup-card select, .setup-card .score-input { height:36px; padding:6px 10px; font-size:13px; }
+    .setup-card input[type="text"],
+    .setup-card input[type="number"],
+    .setup-card select,
+    .setup-card .score-input { height:36px; padding:6px 10px; font-size:13px; }
+
     .setup-card .form-row{ gap:8px; }
     .setup-card .checkbox-row{ gap:8px; }
+
     .setup-card .action-row{ margin-top:10px; gap:8px; justify-content:flex-end; }
     .setup-card .action-row .btn{ max-width:48%; height:40px; font-size:13px; }
     .setup-card .action-row .btn.small{ height:36px; }
+
     .grid{ gap:10px; }
-    .banner{ height:44px; } body { padding-top: 44px; }
+
+    .banner{ height:44px; }
+    body { padding-top: 44px; }
   }
-  /* narrow phones keep checkboxes on single line */
+
+  /* override for narrow phones to keep checkboxes on a single line */
   @media (max-width:480px) {
     .setup-card .form-row { grid-template-columns: repeat(2, 1fr); }
     .setup-card .form-item { margin-bottom:6px; }
     .setup-card .form-item.checkbox-row {
-      display:flex; align-items:center; justify-content:flex-start; gap:10px; padding-top:4px; padding-bottom:4px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:10px;
+      padding-top:4px;
+      padding-bottom:4px;
     }
     .setup-card .form-item.checkbox-row label { margin:0; font-size:13px; }
     .setup-card .form-item.checkbox-row input[type="checkbox"] { margin-right:6px; }
   }
 
-  /* entry card header with save icon */
   .entry-header{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
   .save-icon-btn{ background:transparent; border:0; cursor:pointer; padding:6px; border-radius:8px; transition:background .15s; }
   .save-icon-btn:hover{ background:rgba(255,255,255,0.02); }
@@ -158,7 +301,6 @@
   <div class="banner" id="stageBanner">
     <div id="stageText">Current Stage: Round Robin</div>
   </div>
-
   <div class="wrap">
     <div class="grid">
       <div>
@@ -239,10 +381,8 @@
               <div class="title" id="entryTitle">Enter Teams & Players</div>
               <div style="font-size:12px;color:var(--muted);" id="entrySubtitle"></div>
             </div>
-            <!-- floppy save icon -->
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="save-icon-btn" title="Save Teams" onclick="saveTeams();">
-                <!-- floppy SVG -->
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                   <path d="M17 21v-8H7v8"></path>
@@ -251,7 +391,6 @@
               </button>
             </div>
           </div>
-
           <div id="entryInner"></div>
         </div>
 
@@ -339,7 +478,9 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-/* ================= APP JS (complete & patched) ================= */
+/* =============== App JS =============== */
+/* Baseline logic preserved; changes: renderFixtures now lays out columns = no. of courts on wide screens;
+   exportSummaryPDF implemented as a print-ready popup (Save as PDF via browser Print). */
 
 let teams = [];
 let fixtures = [];
@@ -371,14 +512,13 @@ function showToast(message, type = 'success') {
 function clampInt(v, min=0) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
 function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
-/* Storage */
+/* Storage & Snapshot/Restore (unchanged) */
 function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
 function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
 function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
 function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
 function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
 
-/* Snapshot & Restore */
 function snapshotCurrentState(){
   const settings = {
     gameType: $('gameType').value,
@@ -646,7 +786,6 @@ function startEntry(){
   const clubRR = $('rrType').value === 'club';
   if (clubRR && clubs.length===0) { openClubDialog(); showToast('No clubs found — please add clubs before entering teams.', 'warn'); return; }
 
-  // build form
   let html = '';
   for(let i=1;i<=n;i++){
     html += `<div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;margin-bottom:12px;">`;
@@ -681,7 +820,6 @@ function startEntry(){
   $('entryCard').style.display = 'block';
   updateBanner('Entry');
   setTimeout(()=> { const entry = $('entryCard'); if (entry) entry.scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
-  // update subtitle
   $('entrySubtitle').textContent = ( $('gameType').value === 'singles' ? 'Enter players one per row' : 'Enter teams and player names' );
 }
 
@@ -709,12 +847,11 @@ function saveTeams(){
   else showToast('Save failed','error');
 }
 
-/* Group assignment & summary (enhanced for 'club' rrType) */
+/* Group assignment & summary */
 function assignGroups(){
   const numGroups = clampInt($('numGroups').value,1);
   const rrType = $('rrType').value;
   if (rrType === 'club'){
-    // groups not numeric; keep group null and rely on club
     teams.forEach(t => t.group = null);
   } else {
     teams.forEach((t,i)=> t.group = (i % numGroups) + 1);
@@ -726,7 +863,6 @@ function showGroupSummary(){
   const rrType = $('rrType').value;
   let html = '';
   if (rrType === 'club'){
-    // group by club
     const clubMap = {};
     teams.forEach(t => {
       const k = t.club && t.club.trim() ? t.club : 'Unassigned';
@@ -746,7 +882,6 @@ function showGroupSummary(){
       html += `</div></div>`;
     });
   } else {
-    // group by numeric group
     const groups = {};
     teams.forEach(t=>{ const g = t.group || 1; if(!groups[g]) groups[g]=[]; groups[g].push(t); });
     Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).forEach(g=>{
@@ -769,7 +904,7 @@ function showGroupSummary(){
   updateBanner('Summary');
 }
 
-/* Fixture generation (restored full working implementation) */
+/* Fixture generation */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
   fixtures = [];
@@ -829,46 +964,103 @@ function generateFixtures(){
   scheduleAutoSave();
 }
 
+/* Render fixtures: layout uses number of courts (on wide screens) */
 function renderFixtures(){
   const grid = $('fixturesGrid'); grid.innerHTML = '';
   const rounds = {};
   fixtures.forEach(f=>{ const rKey = f.round || 'all'; if(!rounds[rKey]) rounds[rKey]=[]; rounds[rKey].push(f); });
+
+  const courts = clampInt($('numCourts').value,1);
+  const wide = window.matchMedia('(min-width:900px)').matches;
+
   Object.keys(rounds).sort((a,b)=> a==='all'?1:(b==='all'?-1:Number(a)-Number(b))).forEach(r=>{
     const roundDiv = document.createElement('div');
     roundDiv.innerHTML = `<div class="match-title">${r==='all'?'All Matches':`Round ${r}`}</div>`;
     const inner = document.createElement('div');
-    inner.style.display='grid';
-    inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))';
-    inner.style.gap='12px';
-    rounds[r].forEach(f=>{
-      const card = document.createElement('div'); card.className='match-card';
-      const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
-      const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
-      card.innerHTML = `
-        <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div style="flex:1;">
-            <div class="team-label">${f.t1.name}</div>
-            <div class="team-players">${players1}</div>
+
+    // If wide screen, create columns equal to number of courts
+    if (wide && courts > 1){
+      inner.style.display = 'grid';
+      inner.style.gridTemplateColumns = `repeat(${courts}, 1fr)`;
+      inner.style.gap = '12px';
+
+      // We'll distribute matches into columns by their assigned court number
+      const cols = Array.from({length:courts}, ()=>document.createElement('div'));
+      cols.forEach(c => { c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='12px'; });
+
+      rounds[r].forEach(f=>{
+        const card = document.createElement('div'); card.className='match-card';
+        const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        card.innerHTML = `
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;">
+              <div class="team-label">${f.t1.name}</div>
+              <div class="team-players">${players1}</div>
+            </div>
+            <input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
           </div>
-          <input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-        </div>
-        <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div style="flex:1;">
-            <div class="team-label">${f.t2.name}</div>
-            <div class="team-players">${players2}</div>
+          <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;">
+              <div class="team-label">${f.t2.name}</div>
+              <div class="team-players">${players2}</div>
+            </div>
+            <input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
+          </div>`;
+        const columnIndex = (f.court ? (f.court-1) : 0);
+        cols[columnIndex].appendChild(card);
+      });
+
+      // Build columns into inner grid — label each column with court header
+      cols.forEach((colEl, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex'; wrapper.style.flexDirection='column'; wrapper.style.gap='10px';
+        const hdr = document.createElement('div');
+        hdr.style.fontWeight='700'; hdr.style.color='#eaf4ff'; hdr.style.marginBottom='6px';
+        hdr.textContent = `Court ${idx+1}`;
+        wrapper.appendChild(hdr);
+        wrapper.appendChild(colEl);
+        inner.appendChild(wrapper);
+      });
+
+    } else {
+      // fallback: single-column grid of match cards (mobile or single-court)
+      inner.style.display='grid';
+      inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))';
+      inner.style.gap='12px';
+      rounds[r].forEach(f=>{
+        const card = document.createElement('div'); card.className='match-card';
+        const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+        card.innerHTML = `
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;">
+              <div class="team-label">${f.t1.name}</div>
+              <div class="team-players">${players1}</div>
+            </div>
+            <input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
           </div>
-          <input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-        </div>`;
-      inner.appendChild(card);
-    });
+          <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="flex:1;">
+              <div class="team-label">${f.t2.name}</div>
+              <div class="team-players">${players2}</div>
+            </div>
+            <input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
+          </div>`;
+        inner.appendChild(card);
+      });
+    }
+
     roundDiv.appendChild(inner);
     grid.appendChild(roundDiv);
   });
 }
 
-/* Rankings (restored full implementation) */
+/* Rankings */
 function generateRankings(){
   rankings = {};
   const teamStats = {};
@@ -928,7 +1120,7 @@ function proceedToKnockouts(){
   teams.forEach(t=> { if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
   const qualifiers = [];
   Object.keys(groups).forEach(g=>{
-    const ranked = teams.filter(t=>t.group===Number(g)).slice(0).sort((a,b)=>0); // placeholder: rely on rankings table in real flow
+    const ranked = teams.filter(t=>t.group===Number(g)).slice(0).sort((a,b)=>0); // placeholder
     qualifiers.push(...ranked.slice(0,qualPer));
   });
   const totalQual = qualifiers.length;
@@ -943,6 +1135,100 @@ function proceedToKnockouts(){
 function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML = '<div style="color:var(--muted)">Knockout bracket preview</div>'; }
 
 /* Exports */
+/* Export Summary — builds a print-ready popup with tournament name, group summary, fixtures and rankings. */
+function exportSummaryPDF(){
+  const tourneyName = $('tourneyName').value.trim() || getActiveTournament()?.name || 'Tournament';
+  // Build summary HTML
+  let html = `<html><head><title>${escapeHtml(tourneyName)} — Summary</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#102238;margin:20px;}
+      h1{font-size:20px;margin-bottom:6px;}
+      h2{font-size:16px;margin-top:18px;margin-bottom:6px;}
+      .muted{color:#667085;font-size:13px;}
+      table{width:100%;border-collapse:collapse;margin-top:8px;}
+      th,td{border:1px solid #ddd;padding:6px;text-align:left;font-size:13px;}
+      th{background:#f4f6f8;}
+      .match{margin-bottom:8px;padding:8px;border:1px solid #eee;border-radius:6px;}
+      @media print { button{display:none;} }
+    </style>
+    </head><body>
+    <h1>${escapeHtml(tourneyName)} — Summary</h1>
+    <div class="muted">Generated: ${new Date().toLocaleString()}</div>`;
+
+  // Group summary (reuse the same grouping logic used in the UI)
+  html += `<h2>Group / Club Summary</h2>`;
+  const rrType = $('rrType').value;
+  if (teams.length === 0) {
+    html += `<div class="muted">No teams entered</div>`;
+  } else if (rrType === 'club'){
+    const clubMap = {};
+    teams.forEach(t => {
+      const k = t.club && t.club.trim() ? t.club : 'Unassigned';
+      if (!clubMap[k]) clubMap[k] = [];
+      clubMap[k].push(t);
+    });
+    Object.keys(clubMap).sort().forEach(k => {
+      html += `<h3 style="margin:10px 0 6px;">Club: ${escapeHtml(k)} (${clubMap[k].length})</h3>`;
+      clubMap[k].forEach(t => {
+        const players = t.players.map(p=>escapeHtml(p.name)+(p.dupr?` (${escapeHtml(p.dupr)})`:``)).join(' / ');
+        html += `<div class="muted">${escapeHtml(t.name)} — ${players}</div>`;
+      });
+    });
+  } else {
+    const groups = {};
+    teams.forEach(t=>{ const g = t.group || 1; if(!groups[g]) groups[g]=[]; groups[g].push(t); });
+    Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).forEach(g=>{
+      html += `<h3 style="margin:10px 0 6px;">Group ${g} (${groups[g].length})</h3>`;
+      groups[g].forEach(t=>{
+        const players = t.players.map(p=>escapeHtml(p.name)+(p.dupr?` (${escapeHtml(p.dupr)})`:``)).join(' / ');
+        html += `<div class="muted">${escapeHtml(t.name)} — ${players}</div>`;
+      });
+    });
+  }
+
+  // Fixtures
+  html += `<h2 style="margin-top:18px;">Fixtures</h2>`;
+  if (fixtures.length === 0){
+    html += `<div class="muted">No fixtures generated</div>`;
+  } else {
+    // Show fixtures grouped by round → table listing match, court, team A, team B
+    const rounds = {};
+    fixtures.forEach(f=>{ const r = f.round || 'All'; if(!rounds[r]) rounds[r]=[]; rounds[r].push(f); });
+    Object.keys(rounds).sort((a,b)=> a==='All'?1:(b==='All'?-1:Number(a)-Number(b))).forEach(r=>{
+      html += `<h3 style="margin:8px 0 6px;">${r==='All'?'All Matches':`Round ${r}`}</h3>`;
+      html += '<table><thead><tr><th>Match</th><th>Court</th><th>Team A</th><th>Team B</th></tr></thead><tbody>';
+      rounds[r].forEach(f=>{
+        const aPlayers = f.t1.players.map(p=>escapeHtml(p.name)).join(' / ');
+        const bPlayers = f.t2.players.map(p=>escapeHtml(p.name)).join(' / ');
+        html += `<tr><td>${f.matchNum}</td><td>${f.court||''}</td><td><strong>${escapeHtml(f.t1.name)}</strong><div class="muted">${aPlayers}</div></td><td><strong>${escapeHtml(f.t2.name)}</strong><div class="muted">${bPlayers}</div></td></tr>`;
+      });
+      html += '</tbody></table>';
+    });
+  }
+
+  // Rankings (if generated)
+  html += `<h2 style="margin-top:18px;">Rankings</h2>`;
+  const rankingsHtml = $('rankingsInner')?.innerHTML || '';
+  if (!rankingsHtml || rankingsHtml.trim()==='') {
+    html += `<div class="muted">No rankings generated</div>`;
+  } else {
+    // Pull the table markup (sanitized sufficiently for printing)
+    html += `<div>${rankingsHtml}</div>`;
+  }
+
+  html += `<div style="margin-top:18px;"><button onclick="window.print()" style="padding:8px 12px;font-size:14px;">Print / Save as PDF</button></div>`;
+  html += `</body></html>`;
+
+  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+  if (!w) return showToast('Popup blocked. Allow popups for this site to export PDF.','error');
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  // keep it open for user to print manually (safer than attempting to auto-print)
+}
+
+/* Rankings export CSV & others (unchanged) */
 function exportCSV(){
   let csv = 'Team,Played,Won,Lost,PF,PA,PD,Points\n';
   const stats = {};
@@ -969,14 +1255,14 @@ function exportCSV(){
   const a = document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click();
 }
 
-function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included here)','warn'); }
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
 
 /* UI helpers */
 function updateBanner(stage){ $('stageText').textContent = `Current Stage: ${stage}`; }
 function renderTournamentInfo(){
-  const info = $('tournamentInfo'); const active = getActiveTournament();
+  const info = $('tournamentInfo');
+  const active = getActiveTournament();
   if (!info) return;
   if (!active) { info.style.display='none'; return; }
   info.style.display='flex';
@@ -989,14 +1275,17 @@ function renameActiveTournament(){
   const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return;
   arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success');
 }
-
 function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; }
 function onRRTypeChange(){ const rr = $('rrType').value; $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none'; showGroupSummary(); }
 function updateQualifierDefaults(){}
 function onQualPerGroupManual(){}
 
+/* Util: escape HTML for export */
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 /* Init */
-renderLoadControl(); renderTournamentInfo();
+renderLoadControl();
+renderTournamentInfo();
 </script>
 </body>
 </html>
