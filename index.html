@@ -24,7 +24,7 @@
   }
   *, *::before, *::after { box-sizing:border-box; }
   html,body{height:100%;margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Arial,sans-serif;background:var(--page-bg);color:#102238;-webkit-font-smoothing:antialiased;}
-  body { padding-top: 46px; padding-bottom:18px; } /* ensure bottom space for mobile UIs */
+  body { padding-top: 46px; padding-bottom:18px; }
 
   .banner{
     position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:center;
@@ -35,6 +35,8 @@
   .banner .autosave{ margin-left:12px; font-weight:700; color:var(--gold); display:flex; align-items:center; gap:8px; font-size:12px; }
   .autosave .dot{ width:8px;height:8px;border-radius:50%;background:transparent;border:2px solid rgba(212,175,55,0.85); display:inline-block; }
   .autosave.active .dot{ background:var(--gold); }
+  /* hide autosave text by default since user did not ask for it */
+  #autosaveText{ display:none; }
 
   .wrap{max-width:var(--maxwidth);margin:0 auto;padding:12px 16px;}
   .grid{
@@ -79,7 +81,6 @@
     background:rgba(255,255,255,0.08);
     box-shadow:0 0 0 3px rgba(212,175,55,0.11);
   }
-  /* make select values readable even when not hovered */
   select {
     appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23e7f3ff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11l-5-5h10l-5 5z'/%3E%3C/svg%3E");
@@ -87,16 +88,8 @@
     background-position:right 12px center;
     color:var(--card-text);
   }
-  /* Best-effort styling for option elements (browser support varies) */
-  select option{
-    color:#0f2435; /* dark text on light option background for readability */
-    background:#ffffff;
-  }
-  /* Hover / focus highlight for options (not all browsers support) */
-  select:focus option:checked, select option:hover{
-    background:var(--gold-hover);
-    color:#102238;
-  }
+  select option{ color:#0f2435; background:#ffffff; }
+  select:focus option:checked, select option:hover{ background:var(--gold-hover); color:#102238; }
 
   .score-input { width:76px; text-align:center; font-weight:600; }
 
@@ -265,9 +258,8 @@
 
   /* ---------- Mobile-specific: ensure Setup card fits on common phones ---------- */
   @media (max-width:600px) {
-    /* Target only the Setup card */
     .setup-card{
-      padding:10px;                /* reduce vertical padding */
+      padding:10px;
       margin-bottom:8px;
     }
     .setup-card .title{ font-size:14px; margin-bottom:8px; }
@@ -280,17 +272,38 @@
     .setup-card .form-row{ gap:8px; }
     .setup-card .checkbox-row{ gap:8px; }
 
-    /* Make action buttons more compact and fit side-by-side */
     .setup-card .action-row{ margin-top:10px; gap:8px; justify-content:flex-end; }
     .setup-card .action-row .btn{ max-width:48%; height:40px; font-size:13px; }
     .setup-card .action-row .btn.small{ height:36px; }
 
-    /* Slightly reduce overall layout gap */
     .grid{ gap:10px; }
 
-    /* reduce banner height on small screens slightly (keeps visibility) */
     .banner{ height:44px; }
     body { padding-top: 44px; }
+  }
+
+  /* NEW: override for narrow phones to keep checkboxes on a single line */
+  @media (max-width:480px) {
+    /* Make setup card grid two columns so two checkbox form-items sit side-by-side */
+    .setup-card .form-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    /* Reduce vertical spacing inside setup card */
+    .setup-card .form-item { margin-bottom:6px; }
+    /* Ensure checkbox form-items align nicely */
+    .setup-card .form-item.checkbox-row {
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:10px;
+      padding-top:4px;
+      padding-bottom:4px;
+    }
+    /* Keep checkboxes and labels compact */
+    .setup-card .form-item.checkbox-row label { margin:0; font-size:13px; }
+    .setup-card .form-item.checkbox-row input[type="checkbox"] { margin-right:6px; }
+    /* Remove the autosave text entirely as requested */
+    #autosaveText { display:none !important; }
   }
 </style>
 <!-- jsPDF CDN (for PDF export) -->
@@ -355,6 +368,8 @@
                 <option value="8">8</option>
               </select>
             </div>
+
+            <!-- checkboxes (each is a form-item) — mobile CSS makes them sit side-by-side -->
             <div class="form-item checkbox-row">
               <input id="enableQF" type="checkbox">
               <label for="enableQF" style="margin:0;cursor:pointer;">Enable Quarterfinals</label>
@@ -466,7 +481,7 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-/* ==================== FULL JAVASCRIPT (patched) ==================== */
+/* ==================== FULL JAVASCRIPT (patched mobile checkboxes + hidden Idle text) ==================== */
 
 /* ---------- App State ---------- */
 let teams = [];
@@ -495,8 +510,8 @@ function setAutosaveIndicator(state, text){
   const dot = $('autosaveDot');
   const t = $('autosaveText');
   if(!el || !dot || !t) return;
-  if(state === 'active'){ el.classList.add('active'); t.textContent = text || 'Saving...'; }
-  else { el.classList.remove('active'); t.textContent = text || 'Idle'; }
+  if(state === 'active'){ el.classList.add('active'); if(t) t.textContent = text || 'Saving...'; }
+  else { el.classList.remove('active'); if(t) t.textContent = text || ''; }
 }
 
 /* ---------- Toast ---------- */
@@ -650,22 +665,19 @@ function saveActiveTournament(manual){
 }
 
 function scheduleAutoSave(){
-  // only schedule if there's an active tournament
   ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
-  // compare snapshots — if identical to lastSavedSnapshotJSON, skip scheduling
   const snap = snapshotCurrentState();
   const json = JSON.stringify(snap);
   if (json === lastSavedSnapshotJSON) {
-    // nothing changed
-    setAutosaveIndicator('idle','Idle');
+    setAutosaveIndicator('idle','');
     return;
   }
   if (autosaveTimer) clearTimeout(autosaveTimer);
   setAutosaveIndicator('active','Saving...');
   autosaveTimer = setTimeout(()=>{ 
     const ok = saveActiveTournament(false); 
-    if (ok) { showToast('Auto-saved','success'); setAutosaveIndicator('idle','Auto-saved'); }
+    if (ok) { showToast('Auto-saved','success'); setAutosaveIndicator('idle',''); }
     autosaveTimer = null; 
   }, AUTOSAVE_DELAY);
 }
@@ -712,7 +724,6 @@ function openLoadDialog(){
     list.appendChild(div);
   });
 
-  // event delegation
   box.addEventListener('click', e => {
     const loadBtn = e.target.closest('button[data-id]');
     const delBtn = e.target.closest('button[data-del]');
@@ -742,7 +753,6 @@ function openLoadDialog(){
     }
   });
 
-  // allow clicking outside box to close
   overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
@@ -830,13 +840,11 @@ function openClubDialog(){
   }
   renderClubs();
 
-  // focus input
   setTimeout(()=> {
     const ni = box.querySelector('#newClubInput');
     if (ni) ni.focus();
   }, 80);
 
-  // add club action
   box.querySelector('#addClubBtn').onclick = () => {
     const ni = box.querySelector('#newClubInput');
     const name = ni ? ni.value.trim() : '';
@@ -850,17 +858,14 @@ function openClubDialog(){
     ni.focus();
   };
 
-  // Save & Close
   box.querySelector('#saveCloseClubs').onclick = () => {
     saveActiveTournament(true);
     overlay.remove();
     showToast('Clubs saved','success');
   };
 
-  // Close button
   box.querySelector('#closeClubs').onclick = () => overlay.remove();
 
-  // event delegation for list
   box.querySelector('#clubList').addEventListener('click', e => {
     const btn = e.target;
     if (!btn) return;
@@ -876,7 +881,6 @@ function openClubDialog(){
     }
   });
 
-  // overlay click to close
   overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
@@ -896,7 +900,6 @@ function startEntry(){
   const dupr = $('enableDUPR').checked;
   const clubRR = $('rrType').value === 'club';
   
-  // when Across Clubs but no clubs exist → open modal and focus add input
   if (clubRR && clubs.length===0) { 
     openClubDialog(); 
     showToast('No clubs found — please add clubs before entering teams.', 'warn');
@@ -938,7 +941,6 @@ function startEntry(){
   $('entryCard').style.display = 'block';
   updateBanner('Entry');
 
-  // scroll entry into view to reduce need for manual scroll on mobile
   setTimeout(()=> {
     const entry = $('entryCard');
     if (entry) entry.scrollIntoView({behavior:'smooth', block:'start'});
@@ -1038,7 +1040,6 @@ function generateFixtures(){
     });
   }
 
-  // Court allocation
   if (courtAlloc==='roundwise'){
     let round = 1;
     fixtures.forEach((f,i)=>{
@@ -1134,7 +1135,6 @@ function generateRankings(){
     return 0;
   });
 
-  // Save rankings for knockout selection use
   rankings = {};
   sorted.forEach((s,i)=> rankings[s.t.id] = { pos: i+1, ...s });
 
@@ -1183,7 +1183,6 @@ function renderAppropriateKnockoutView(){
   inner.innerHTML = '';
   const q = knockout.qualifiers || [];
   if (knockout.stages===8){
-    // Quarterfinals
     const matches = [
       {t1:q[0],t2:q[7]}, {t1:q[3],t2:q[4]},
       {t1:q[1],t2:q[6]}, {t1:q[2],t2:q[5]}
@@ -1293,7 +1292,6 @@ async function exportSummaryPDF(){
       if (y > 740) { doc.addPage(); y = margin; }
     });
 
-    // If rankings exist, include ranking table
     if (Object.keys(rankings||{}).length>0){
       doc.addPage();
       y = margin;
@@ -1363,14 +1361,9 @@ function printSchedule(){
 /* ---------- Init ---------- */
 renderLoadControl();
 renderTournamentInfo();
-setAutosaveIndicator('idle','Idle');
+setAutosaveIndicator('idle','');
 
-/* ---------- Remaining functions preserved (no major change) ---------- */
-
-/* onQualPerGroupManual stub */
-function onQualPerGroupManual(){ /* placeholder: future logic */ }
-
-/* small helper: update qualifier defaults (kept for compatibility) */
+function onQualPerGroupManual(){ /* placeholder */ }
 function updateQualifierDefaults(){}
 </script>
 </body>
