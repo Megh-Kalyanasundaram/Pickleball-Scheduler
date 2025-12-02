@@ -24,13 +24,18 @@
   }
   *, *::before, *::after { box-sizing:border-box; }
   html,body{height:100%;margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Arial,sans-serif;background:var(--page-bg);color:#102238;-webkit-font-smoothing:antialiased;}
-  body { padding-top: 38px; }
+  body { padding-top: 46px; } /* increased to ensure banner not overlap on small screens */
 
   .banner{
-    position:fixed;top:0;left:0;right:0;height:38px;display:flex;align-items:center;justify-content:center;
+    position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:center;
     padding:0 16px;background:var(--card-bg);color:var(--card-text);box-shadow:0 4px 16px rgba(0,0,0,0.2);
     z-index:999;font-weight:700;font-size:13px;letter-spacing:0.3px;
   }
+  .banner .meta{ font-weight:600; font-size:12px; color:var(--muted); margin-left:8px; }
+  .banner .autosave{ margin-left:12px; font-weight:700; color:var(--gold); display:flex; align-items:center; gap:8px; font-size:12px; }
+  .autosave .dot{ width:8px;height:8px;border-radius:50%;background:transparent;border:2px solid rgba(212,175,55,0.85); display:inline-block; }
+  .autosave.active .dot{ background:var(--gold); }
+
   .wrap{max-width:var(--maxwidth);margin:0 auto;padding:12px 16px;}
   .grid{
     display:grid;
@@ -72,14 +77,27 @@
     outline:none;
     border-color:var(--gold);
     background:rgba(255,255,255,0.08);
-    box-shadow:0 0 0 3px rgba(212,175,55,0.2);
+    box-shadow:0 0 0 3px rgba(212,175,55,0.11);
   }
+  /* make select values readable even when not hovered */
   select {
     appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23e7f3ff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11l-5-5h10l-5 5z'/%3E%3C/svg%3E");
     background-repeat:no-repeat;
     background-position:right 12px center;
+    color:var(--card-text);
   }
+  /* Best-effort styling for option elements (browser support varies) */
+  select option{
+    color:#0f2435; /* dark text on light option background for readability */
+    background:#ffffff;
+  }
+  /* Hover / focus highlight for options (not all browsers support) */
+  select:focus option:checked, select option:hover{
+    background:var(--gold-hover);
+    color:#102238;
+  }
+
   .score-input { width:76px; text-align:center; font-weight:600; }
 
   label{
@@ -241,10 +259,21 @@
     .match-grid{ grid-template-columns:1fr; }
     .score-input{ width:64px; }
   }
+
+  /* overlay box helper */
+  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:9999; background:rgba(2,6,15,0.45); }
 </style>
+<!-- jsPDF CDN (for PDF export) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <div class="banner" id="stageBanner">Current Stage: Round Robin</div>
+  <div class="banner" id="stageBanner">
+    <div id="stageText">Current Stage: Round Robin</div>
+    <div class="autosave" id="autosaveIndicator" title="Auto-save status" style="display:inline-flex;">
+      <span class="dot" id="autosaveDot"></span>
+      <span id="autosaveText" style="font-weight:700;color:var(--gold);display:inline-block">Idle</span>
+    </div>
+  </div>
   <div class="wrap">
     <div class="grid">
       <div>
@@ -407,7 +436,7 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-// ==================== FULL JAVASCRIPT (100% complete) ====================
+/* ==================== FULL JAVASCRIPT (patched) ==================== */
 
 /* ---------- App State ---------- */
 let teams = [];
@@ -419,13 +448,26 @@ let autosaveTimer = null;
 const AUTOSAVE_DELAY = 800;
 const TOAST_DURATION = 3500;
 
+/* Autosave comparators */
+let lastSavedSnapshotJSON = null;
+
 /* ---------- Storage keys ---------- */
 const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
 const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
 
 /* ---------- DOM helper ---------- */
 const $ = id => document.getElementById(id);
-function updateBanner(stage){ $('stageBanner').textContent = `Current Stage: ${stage}`; }
+function updateBanner(stage){ $('stageText').textContent = `Current Stage: ${stage}`; }
+
+/* ---------- Autosave indicator ---------- */
+function setAutosaveIndicator(state, text){
+  const el = $('autosaveIndicator');
+  const dot = $('autosaveDot');
+  const t = $('autosaveText');
+  if(!el || !dot || !t) return;
+  if(state === 'active'){ el.classList.add('active'); t.textContent = text || 'Saving...'; }
+  else { el.classList.remove('active'); t.textContent = text || 'Idle'; }
+}
 
 /* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
@@ -545,6 +587,7 @@ function createTournament(name){
   renderLoadControl();
   renderTournamentInfo();
   showToast(`Tournament created: ${tournament.name}`, 'success');
+  lastSavedSnapshotJSON = JSON.stringify(tournament.snapshot);
   return tournament;
 }
 
@@ -555,24 +598,46 @@ function saveActiveTournament(manual){
   const idx = arr.findIndex(t => t.id === id);
   const snap = snapshotCurrentState();
   const now = Date.now();
-  if (idx >= 0){
-    arr[idx].snapshot = snap;
-    arr[idx].lastSaved = now;
-  } else {
-    arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
+  try {
+    if (idx >= 0){
+      arr[idx].snapshot = snap;
+      arr[idx].lastSaved = now;
+    } else {
+      arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
+    }
+    writeTournamentStore(arr);
+    renderLoadControl();
+    renderTournamentInfo();
+    if (manual) showToast('Tournament saved','success');
+    lastSavedSnapshotJSON = JSON.stringify(snap);
+    setAutosaveIndicator('idle','Saved');
+    return true;
+  } catch(e){
+    console.error(e);
+    showToast('Save failed','error');
+    return false;
   }
-  writeTournamentStore(arr);
-  renderLoadControl();
-  renderTournamentInfo();
-  if (manual) showToast('Tournament saved','success');
-  return true;
 }
 
 function scheduleAutoSave(){
+  // only schedule if there's an active tournament
   ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
+  // compare snapshots — if identical to lastSavedSnapshotJSON, skip scheduling
+  const snap = snapshotCurrentState();
+  const json = JSON.stringify(snap);
+  if (json === lastSavedSnapshotJSON) {
+    // nothing changed
+    setAutosaveIndicator('idle','Idle');
+    return;
+  }
   if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY);
+  setAutosaveIndicator('active','Saving...');
+  autosaveTimer = setTimeout(()=>{ 
+    const ok = saveActiveTournament(false); 
+    if (ok) { showToast('Auto-saved','success'); setAutosaveIndicator('idle','Auto-saved'); }
+    autosaveTimer = null; 
+  }, AUTOSAVE_DELAY);
 }
 
 function ensureTournamentExistsOnFirstSave(){
@@ -591,15 +656,14 @@ function openLoadDialog(){
   const arr = readTournamentStore();
   if (!arr.length) return showToast('No saved tournaments.','warn');
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,15,0.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  overlay.className = 'overlay';
   const box = document.createElement('div');
   box.style.cssText = 'width:min(680px,95%);max-height:80%;overflow:auto;background:var(--card-bg);border-radius:10px;padding:16px;box-shadow:0 10px 40px rgba(2,6,23,0.6);';
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-weight:800;color:#eaf4ff">Load Tournament</div>
-      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
+      <button id="closeLoad" class="btn ghost small">Close</button>
     </div>
     <div id="loadList" style="display:flex;flex-direction:column;gap:8px;"></div>`;
-  overlay.className = 'overlay';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
@@ -618,9 +682,11 @@ function openLoadDialog(){
     list.appendChild(div);
   });
 
+  // event delegation
   box.addEventListener('click', e => {
     const loadBtn = e.target.closest('button[data-id]');
     const delBtn = e.target.closest('button[data-del]');
+    const closeBtn = e.target.closest('#closeLoad');
     if (loadBtn){
       const id = loadBtn.dataset.id;
       const tourney = readTournamentStore().find(x=>x.id===id);
@@ -641,7 +707,13 @@ function openLoadDialog(){
       renderLoadControl();
       showToast('Deleted','success');
     }
+    if (closeBtn){
+      overlay.remove();
+    }
   });
+
+  // allow clicking outside box to close
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
 /* ---------- Tournament Info ---------- */
@@ -685,31 +757,39 @@ function onRRTypeChange(){
 /* ---------- Club Management ---------- */
 function openClubDialog(){
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  overlay.className = 'overlay';
   const box = document.createElement('div');
   box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3>
-      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
+      <div>
+        <button id="closeClubs" class="btn ghost small">Close</button>
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;gap:8px;">
+        <input id="newClubInput" type="text" placeholder="New club name" style="flex:1;height:38px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:var(--card-text);">
+        <button id="addClubBtn" class="btn small">Add</button>
+      </div>
     </div>
     <div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <div style="margin-top:16px;display:flex;gap:8px;">
-      <button id="addClubBtn" class="btn small ghost">+ Add Club</button>
-    </div>
     <div style="margin-top:12px;text-align:right;">
-      <button class="btn small" onclick="saveActiveTournament(true);this.closest('.overlay').remove();showToast('Clubs saved','success')">Save & Close</button>
+      <button id="saveCloseClubs" class="btn small">Save & Close</button>
     </div>`;
-  overlay.className='overlay';
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 
   function renderClubs(){
     const list = box.querySelector('#clubList');
     list.innerHTML = '';
+    if (!clubs.length) {
+      list.innerHTML = `<div style="color:var(--muted)">No clubs yet — add one above.</div>`;
+      return;
+    }
     clubs.forEach((c,i) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;';
-      row.innerHTML = `<span style="font-weight:600;">${c}</span>
+      row.innerHTML = `<span style="font-weight:600;color:var(--card-text)">${c}</span>
         <div>
           <button class="btn ghost small" ${i===0?'disabled':''} data-dir="up" data-i="${i}">↑</button>
           <button class="btn ghost small" ${i===clubs.length-1?'disabled':''} data-dir="down" data-i="${i}">↓</button>
@@ -720,22 +800,44 @@ function openClubDialog(){
   }
   renderClubs();
 
+  // focus input
+  setTimeout(()=> {
+    const ni = box.querySelector('#newClubInput');
+    if (ni) ni.focus();
+  }, 80);
+
+  // add club action
   box.querySelector('#addClubBtn').onclick = () => {
-    const name = prompt('Club name:')?.trim();
-    if (!name) return;
-    if (clubs.includes(name)) return showToast('Already exists','warn');
+    const ni = box.querySelector('#newClubInput');
+    const name = ni ? ni.value.trim() : '';
+    if (!name) return showToast('Enter club name','warn');
+    if (clubs.includes(name)) { ni.value=''; return showToast('Already exists','warn'); }
     clubs.push(name);
+    ni.value='';
     renderClubs();
     updateClubDropdowns();
+    scheduleAutoSave();
+    ni.focus();
   };
 
-  box.addEventListener('click', e => {
+  // Save & Close
+  box.querySelector('#saveCloseClubs').onclick = () => {
+    saveActiveTournament(true);
+    overlay.remove();
+    showToast('Clubs saved','success');
+  };
+
+  // Close button
+  box.querySelector('#closeClubs').onclick = () => overlay.remove();
+
+  // event delegation for list
+  box.querySelector('#clubList').addEventListener('click', e => {
     const btn = e.target;
+    if (!btn) return;
     if (btn.dataset.dir){
       const i = Number(btn.dataset.i);
-      if (btn.dataset.dir==='up' && i>0){ [clubs[i-1],clubs[i]]=[clubs[i],clubs[i-1]]; renderClubs(); }
-      if (btn.dataset.dir==='down' && i<clubs.length-1){ [clubs[i],clubs[i+1]]=[clubs[i+1],clubs[i]]; renderClubs(); }
-      updateClubDropdowns();
+      if (btn.dataset.dir==='up' && i>0){ [clubs[i-1],clubs[i]]=[clubs[i],clubs[i-1]]; renderClubs(); updateClubDropdowns(); }
+      if (btn.dataset.dir==='down' && i<clubs.length-1){ [clubs[i],clubs[i+1]]=[clubs[i+1],clubs[i]]; renderClubs(); updateClubDropdowns(); }
     }
     if (btn.dataset.del!==undefined){
       clubs.splice(Number(btn.dataset.del),1);
@@ -743,6 +845,9 @@ function openClubDialog(){
       updateClubDropdowns();
     }
   });
+
+  // overlay click to close
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
 function updateClubDropdowns(){
@@ -761,10 +866,10 @@ function startEntry(){
   const dupr = $('enableDUPR').checked;
   const clubRR = $('rrType').value === 'club';
   
-  // PATCH: when Across Clubs but no clubs exist → open modal
+  // when Across Clubs but no clubs exist → open modal and focus add input
   if (clubRR && clubs.length===0) { 
     openClubDialog(); 
-    showToast('No clubs found — please add clubs before entering teams.','warn');
+    showToast('No clubs found — please add clubs before entering teams.', 'warn');
     return; 
   }
 
@@ -802,6 +907,12 @@ function startEntry(){
   $('entryInner').innerHTML = html;
   $('entryCard').style.display = 'block';
   updateBanner('Entry');
+
+  // scroll entry into view to reduce need for manual scroll on mobile
+  setTimeout(()=> {
+    const entry = $('entryCard');
+    if (entry) entry.scrollIntoView({behavior:'smooth', block:'start'});
+  }, 100);
 }
 
 function saveTeams(){
@@ -848,7 +959,7 @@ function showGroupSummary(){
     });
     html += `</div></div>`;
   });
-  $('summaryInner').innerHTML = html;
+  $('summaryInner').innerHTML = html || '<div style="color:var(--muted)">No teams yet.</div>';
   $('summaryCard').style.display = 'block';
   $('fixturesCard').style.display = 'none';
   $('rankingsCard').style.display = 'none';
@@ -964,8 +1075,11 @@ function generateRankings(){
   teams.forEach(t=> teamStats[t.id]={t, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0});
 
   fixtures.forEach(f=>{
-    const s1 = Number($(`s1-${f.id}`)?.value||0);
-    const s2 = Number($(`s2-${f.id}`)?.value||0);
+    const s1raw = $(`s1-${f.id}`)?.value;
+    const s2raw = $(`s2-${f.id}`)?.value;
+    if ((s1raw === '' || s2raw === '') || (s1raw === null && s2raw === null)) return;
+    const s1 = Number(s1raw||0);
+    const s2 = Number(s2raw||0);
     if (s1===0 && s2===0) return;
     if (s1===s2) { showToast('No ties allowed!','warn'); return; }
     teamStats[f.t1.id].played++;
@@ -981,9 +1095,7 @@ function generateRankings(){
     }
   });
 
-  Object.values(teamStats).forEach(s=>{
-    s.pd = s.pf - s.pa;
-  });
+  Object.values(teamStats).forEach(s=>{ s.pd = s.pf - s.pa; });
 
   const sorted = Object.values(teamStats).sort((a,b)=>{
     if (b.pts !== a.pts) return b.pts - a.pts;
@@ -991,6 +1103,10 @@ function generateRankings(){
     if (b.pf !== a.pf) return b.pf - a.pf;
     return 0;
   });
+
+  // Save rankings for knockout selection use
+  rankings = {};
+  sorted.forEach((s,i)=> rankings[s.t.id] = { pos: i+1, ...s });
 
   let html = '<table class="white-table"><thead><tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>';
   sorted.forEach((s,i)=>{
@@ -1015,6 +1131,7 @@ function proceedToKnockouts(){
     const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{
       const sa = rankings[a.id] || {}, sb = rankings[b.id] || {};
       if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0);
+      if ((sb.pd||0) !== (sa.pd||0)) return (sb.pd||0)-(sa.pd||0);
       return 0;
     });
     qualifiers.push(...ranked.slice(0,qualPer));
@@ -1034,7 +1151,7 @@ function proceedToKnockouts(){
 function renderAppropriateKnockoutView(){
   const inner = $('knockoutsInner');
   inner.innerHTML = '';
-  const q = knockout.qualifiers;
+  const q = knockout.qualifiers || [];
   if (knockout.stages===8){
     // Quarterfinals
     const matches = [
@@ -1088,19 +1205,19 @@ function exportCSV(){
   fixtures.forEach(f=>{
     const s1 = Number($(`s1-${f.id}`)?.value||0);
     const s2 = Number($(`s2-${f.id}`)?.value||0);
-    if(!s1&&!s2) return;
+    if((s1===0 && s2===0) || (s1==='' && s2==='')) return;
     stats[f.t1.id].played++; stats[f.t2.id].played++;
     stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2;
     stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1;
     if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; }
-    stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won;
-    stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won;
+    stats[f.t1.id].lost = stats[f.t1.id].played - (stats[f.t1.id].won||0);
+    stats[f.t2.id].lost = stats[f.t2.id].played - (stats[f.t2.id].won||0);
   });
   teams.forEach(t=>{
-    const s = stats[t.id];
+    const s = stats[t.id] || {played:0,won:0,lost:0,pf:0,pa:0};
     const pd = s.pf - s.pa;
-    const pts = s.won*3;
-    csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`;
+    const pts = (s.won||0)*3;
+    csv += `${t.name},${s.played},${s.won||0},${s.lost||0},${s.pf||0},${s.pa||0},${pd},${pts}\n`;
   });
   const blob = new Blob([csv],{type:'text/csv'});
   const url = URL.createObjectURL(blob);
@@ -1108,12 +1225,105 @@ function exportCSV(){
   a.href=url; a.download='pickleball_rankings.csv'; a.click();
 }
 
-function exportSummaryPDF(){
-  showToast('PDF export requires jsPDF (not included in this version)','warn');
+/* PDF exports using jsPDF (simple, clean summary) */
+async function exportSummaryPDF(){
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt',format:'a4'});
+    const margin = 40;
+    let y = margin;
+    const lineHeight = 16;
+    const title = $('tourneyName')?.value || makeTimestampName();
+    doc.setFontSize(16);
+    doc.text(title, margin, y);
+    y += 24;
+    doc.setFontSize(11);
+    doc.text(`Exported: ${new Date().toLocaleString()}`, margin, y);
+    y += 18;
+
+    // Groups summary
+    doc.setFontSize(13);
+    doc.text('Groups', margin, y);
+    y += 16;
+    const groups = {};
+    teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
+    Object.keys(groups).sort().forEach(g=>{
+      doc.setFontSize(11);
+      doc.text(`Group ${g} (${groups[g].length})`, margin, y);
+      y += lineHeight;
+      groups[g].forEach(t=>{
+        const players = t.players.map(p=>p.name + (p.dupr?` (${p.dupr})`:``)).join(' / ');
+        const line = `${t.name}${t.club?` — ${t.club}`:''} : ${players}`;
+        const splitted = doc.splitTextToSize(line, 520);
+        doc.text(splitted, margin+10, y);
+        y += (splitted.length * lineHeight);
+        if (y > 740) { doc.addPage(); y = margin; }
+      });
+      y += 8;
+      if (y > 740) { doc.addPage(); y = margin; }
+    });
+
+    // If rankings exist, include ranking table
+    if (Object.keys(rankings||{}).length>0){
+      doc.addPage();
+      y = margin;
+      doc.setFontSize(13);
+      doc.text('Rankings', margin, y);
+      y += 18;
+      doc.setFontSize(10);
+      const header = ['Pos','Team','P','W','L','PF','PA','PD','Pts'];
+      let x = margin;
+      header.forEach((h, i) => { doc.text(h, x, y); x += i===1 ? 220 : 40; });
+      y += lineHeight;
+      const sorted = Object.values(rankings).sort((a,b)=>a.pos - b.pos);
+      sorted.forEach(s=>{
+        x = margin;
+        doc.text(String(s.pos), x, y); x+=40;
+        doc.text(s.t.name, x, y); x += 220;
+        doc.text(String(s.played||0), x, y); x+=40;
+        doc.text(String(s.won||0), x, y); x+=40;
+        doc.text(String(s.lost||0), x, y); x+=40;
+        doc.text(String(s.pf||0), x, y); x+=40;
+        doc.text(String(s.pa||0), x, y); x+=40;
+        doc.text(String(s.pd||0), x, y); x+=40;
+        doc.text(String(s.pts||0), x, y);
+        y += lineHeight;
+        if (y > 740) { doc.addPage(); y = margin; }
+      });
+    }
+
+    doc.save(`${title.replace(/\s+/g,'_')}_summary.pdf`);
+    showToast('Summary PDF generated','success');
+  } catch (e){
+    console.error(e);
+    showToast('PDF generation failed','error');
+  }
 }
 
 function exportSchedulePDF(){
-  showToast('Schedule PDF export ready in full version','success');
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt',format:'a4'});
+    const margin = 40;
+    let y = margin;
+    doc.setFontSize(16);
+    const title = $('tourneyName')?.value || makeTimestampName();
+    doc.text(`${title} — Schedule`, margin, y);
+    y += 24;
+    doc.setFontSize(11);
+    fixtures.forEach(f=>{
+      const line = `Match ${f.matchNum}${f.court?` • Court ${f.court}`:''} — ${f.t1.name} vs ${f.t2.name}`;
+      const split = doc.splitTextToSize(line, 520);
+      doc.text(split, margin, y);
+      y += (split.length * 14);
+      if (y > 740) { doc.addPage(); y = margin; }
+    });
+    doc.save(`${title.replace(/\s+/g,'_')}_schedule.pdf`);
+    showToast('Schedule PDF generated','success');
+  } catch(e){
+    console.error(e);
+    showToast('Schedule PDF failed','error');
+  }
 }
 
 function printSchedule(){
@@ -1123,8 +1333,18 @@ function printSchedule(){
 /* ---------- Init ---------- */
 renderLoadControl();
 renderTournamentInfo();
+setAutosaveIndicator('idle','Idle');
+
+/* ---------- Remaining functions preserved (no major change) ---------- */
+
+/* onQualPerGroupManual stub */
+function onQualPerGroupManual(){ /* placeholder: future logic */ }
+
+/* small helper: update qualifier defaults (kept for compatibility) */
+function updateQualifierDefaults(){}
+
+/* preserve renderFixtures, generateFixtures etc (already above) */
 
 </script>
 </body>
 </html>
-
