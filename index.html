@@ -323,6 +323,9 @@
   /* disabled appearance for No. of Groups and QF checkbox when not applicable */
   .disabled-input{ opacity:0.55; pointer-events:none; }
   .disabled-checkbox{ opacity:0.55; pointer-events:none; }
+
+  /* helper to visually hide non-dupr when DUPR-only editing */
+  .hidden-while-dup { display: none !important; }
 </style>
 </head>
 <body>
@@ -394,7 +397,7 @@
           </div>
 
           <div class="action-row" style="margin-top:12px;">
-            <button class="btn" id="startEntryBtn" onclick="startEntry()">Next: Enter Details</button>
+            <button class="btn" id="startEntryBtn" onclick="startEntry(false,false)">Next: Enter Details</button>
             <button class="btn ghost" id="resetBtn" onclick="if(confirm('Reset everything?'))location.reload()">Reset All</button>
             <button class="btn ghost small" id="loadBtn" onclick="openLoadDialog()">Load</button>
           </div>
@@ -428,12 +431,18 @@
           <div style="display:flex;gap:8px;align-items:center;">
             <div class="muted" id="tourneyMeta" style="font-size:12px;"></div>
             <button class="btn small ghost" onclick="renameActiveTournament()">Rename</button>
+            <button id="editTeamsBtnTop" class="btn small ghost" title="Edit teams" onclick="openEditTeams()" style="display:none;">Edit Teams</button>
           </div>
         </div>
 
         <!-- Summary -->
         <div id="summaryCard" class="card" style="margin-top:12px;display:none;">
-          <div class="title">Group Summary</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="title">Group Summary</div>
+            <div>
+              <button id="editTeamsBtnSummary" class="btn small ghost" onclick="openEditTeams()" style="display:none;">Edit Teams</button>
+            </div>
+          </div>
           <div id="summaryInner"></div>
         </div>
 
@@ -630,7 +639,11 @@ function openLoadDialog(){
 }
 
 /* ---------- Tournament info ---------- */
-function renderTournamentInfo(){ const info = $('tournamentInfo'); const active = getActiveTournament(); if (!info) return; if (!active) { info.style.display='none'; return; } info.style.display='flex'; $('tourneyName').value = active.name || ''; $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`; }
+function renderTournamentInfo(){ const info = $('tournamentInfo'); const active = getActiveTournament(); if (!info) return; if (!active) { info.style.display='none'; // hide edit buttons when no active tournament
+    document.querySelectorAll('#editTeamsBtnTop,#editTeamsBtnSummary').forEach(b=>{ if(b) b.style.display='none'; });
+    return; } info.style.display='flex'; $('tourneyName').value = active.name || ''; $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`; // show edit buttons
+  document.querySelectorAll('#editTeamsBtnTop,#editTeamsBtnSummary').forEach(b=>{ if(b) b.style.display='inline-block'; });
+}
 function renameActiveTournament(){ const id = getActiveTournamentId(); if (!id) return showToast('No active tournament','warn'); const newName = $('tourneyName').value.trim(); if (!newName) return showToast('Enter a name','warn'); const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return; arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success'); }
 
 /* ---------- UI helpers ---------- */
@@ -719,40 +732,144 @@ function openClubDialog(){
 }
 function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
-/* ---------- Entry ---------- */
-function startEntry(){
+/* ---------- Entry (prefill / edit support) ---------- */
+/*
+  startEntry(editMode = false, dupOnly = false)
+  - editMode: if true, prefill from teams (if teams empty and active snapshot exists, restore snapshot teams)
+  - dupOnly: if true, prefill and focus ONLY DUPR inputs (keeps other inputs present but hides them)
+*/
+function startEntry(editMode = false, dupOnly = false){
   const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
-  if (clubRR && clubs.length===0) { openClubDialog(); showToast('No clubs found — please add clubs before entering teams.','warn'); return; }
+
+  // If editMode and teams empty, try to populate from active snapshot
+  if (editMode && (!teams || teams.length === 0)) {
+    const active = getActiveTournament();
+    if (active && active.snapshot && active.snapshot.teams) {
+      teams = (active.snapshot.teams || []).map(t => ({ id: t.id || generateId('t'), name: t.name || '', players: (t.players||[]).map(p => ({name:p.name||'',dupr:p.dupr||''})), group: t.group||null, club: t.club||'' }));
+    }
+  }
+
+  // If editMode and existing teams length differs from numTeams, we will show inputs matching numTeams,
+  // prefill from existing teams where possible.
   let html = '';
   for(let i=1;i<=n;i++){
+    const existing = (teams[i-1]) || null;
     html += `<div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;margin-bottom:12px;">`;
     if(type==='singles'){
-      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label><div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR" style="width:120px;">`:''}</div>`;
-      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
+      const pname = existing ? (existing.players[0]?.name || '') : '';
+      const pdupr = existing ? (existing.players[0]?.dupr || '') : '';
+      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <div class="non-dupr" style="flex:1;"><input id="pA_${i}" type="text" placeholder="Player name" style="width:100%;" value="${escapeHtml(pname)}"></div>
+          ${dupr?`<input id="dA_${i}" class="dupr-field" type="text" placeholder="DUPR" style="width:120px;" value="${escapeHtml(pdupr)}">`:''}
+        </div>`;
+      if(clubRR) html += `<div class="non-dupr" style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></div>`;
     } else {
-      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;"><div><input id="pA_${i}" type="text" placeholder="Player A">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR A" style="margin-top:4px;">`:''}</div><div><input id="pB_${i}" type="text" placeholder="Player B">${dupr?`<input id="dB_${i}" type="text" placeholder="DUPR B" style="margin-top:4px;">`:''}</div></div>`;
-      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
+      const pAname = existing ? (existing.players[0]?.name || '') : '';
+      const pBname = existing ? (existing.players[1]?.name || '') : '';
+      const pAdupr = existing ? (existing.players[0]?.dupr || '') : '';
+      const pBdupr = existing ? (existing.players[1]?.dupr || '') : '';
+      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;">
+          <div class="non-dupr"><input id="pA_${i}" type="text" placeholder="Player A" value="${escapeHtml(pAname)}">${dupr?`<input id="dA_${i}" class="dupr-field" type="text" placeholder="DUPR A" style="margin-top:4px;" value="${escapeHtml(pAdupr)}">`:''}</div>
+          <div class="non-dupr"><input id="pB_${i}" type="text" placeholder="Player B" value="${escapeHtml(pBname)}">${dupr?`<input id="dB_${i}" class="dupr-field" type="text" placeholder="DUPR B" style="margin-top:4px;" value="${escapeHtml(pBdupr)}">`:''}</div>
+        </div>`;
+      if(clubRR) html += `<div class="non-dupr" style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></div>`;
     }
     html += `</div>`;
   }
-  html += `<div class="action-row"><button class="btn" onclick="saveTeams();showToast('Teams saved','success');">Save Teams</button><button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button></div>`;
-  $('entryInner').innerHTML = html; $('entryCard').style.display = 'block'; updateBanner('Entry');
+
+  html += `<div class="action-row"><button class="btn" onclick="saveTeams(${editMode ? 'true' : 'false'})">Save Teams</button><button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button></div>`;
+  $('entryInner').innerHTML = html;
+
+  // Set club dropdown selections from existing teams if editing
+  if (editMode){
+    for(let i=1;i<=n;i++){
+      const existing = teams[i-1] || null;
+      if (existing && existing.club){
+        const sel = $(`club_${i}`);
+        if (sel) sel.value = existing.club;
+      }
+    }
+  }
+
+  // If dupOnly is requested, hide non-dupr blocks to present a focused DUPR-only UI
+  if (dupOnly){
+    // ensure DUPR checkbox is checked so dup fields are present (handled in caller)
+    setTimeout(()=> {
+      document.querySelectorAll('#entryInner .non-dupr').forEach(el => el.classList.add('hidden-while-dup'));
+      // focus first dup field
+      const firstDup = document.querySelector('#entryInner .dupr-field');
+      if (firstDup) firstDup.focus();
+    }, 60);
+  } else {
+    // ensure none are hidden
+    setTimeout(()=> {
+      document.querySelectorAll('#entryInner .non-dupr').forEach(el => el.classList.remove('hidden-while-dup'));
+    }, 60);
+  }
+
+  $('entryCard').style.display = 'block';
+  updateBanner(editMode ? 'Edit Teams' : 'Entry');
 }
 
-function saveTeams(){
-  const n = clampInt($('numTeams').value); const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
-  teams = [];
-  for(let i=1;i<=n;i++){
+// Utility to escape HTML attribute values
+function escapeHtml(s){
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ---------- Save teams (update in-place when editing) ---------- */
+function saveTeams(editMode = false){
+  const n = clampInt($('numTeams').value, 2);
+  const type = $('gameType').value;
+  const dupr = $('enableDUPR').checked;
+  const clubRR = $('rrType').value === 'club';
+
+  // If editing and current fixtures exist and user reduced number of teams, ask confirm
+  if (editMode && fixtures && fixtures.length > 0 && teams.length > n){
+    if (!confirm(`You are reducing the team count from ${teams.length} to ${n}. This will remove the last ${teams.length - n} teams and any fixtures involving them will remain but may reference missing team names. Proceed?`)) {
+      return;
+    }
+  }
+
+  const newTeams = [];
+  for (let i=1;i<=n;i++){
     const nameA = $(`pA_${i}`)?.value.trim() || (type==='singles'?`Player ${i}`:`P${i}A`);
     const nameB = type==='doubles' ? $(`pB_${i}`)?.value.trim() || `P${i}B` : '';
-    const duprA = dupr ? $(`dA_${i}`)?.value.trim() : '';
-    const duprB = dupr && type==='doubles' ? $(`dB_${i}`)?.value.trim() : '';
+    const duprA = dupr ? $(`dA_${i}`)?.value.trim() || '' : '';
+    const duprB = dupr && type==='doubles' ? $(`dB_${i}`)?.value.trim() || '' : '';
     const club = clubRR ? $(`club_${i}`)?.value : '';
     const players = type==='singles' ? [{name:nameA,dupr:duprA}] : [{name:nameA,dupr:duprA},{name:nameB,dupr:duprB}];
-    teams.push({id:generateId('t'), name: type==='singles'?nameA:`Team ${i}`, players, group:null, club, isBye:false});
+
+    if (editMode && teams[i-1]){
+      // update in-place preserving id
+      const existing = teams[i-1];
+      existing.name = type === 'singles' ? nameA : (existing.name || `Team ${i}`);
+      if (type !== 'singles') existing.name = `Team ${i}`;
+      existing.players = players;
+      existing.club = club || '';
+      existing.isBye = false;
+      newTeams.push(existing);
+    } else {
+      // create new team object (fresh id)
+      newTeams.push({ id: generateId('t'), name: type==='singles' ? nameA : `Team ${i}`, players, group: null, club: club || '', isBye:false });
+    }
   }
-  assignGroups(); $('entryCard').style.display='none'; updateBanner('Round Robin'); ensureTournamentExistsOnFirstSave(); saveActiveTournament(true);
+
+  // If editing and there were additional teams beyond newTeams, we keep only the newTeams
+  teams = newTeams.slice();
+
+  // Reassign groups (maintain previous group numbers if possible)
+  assignGroups();
+
+  // Hide entry and save snapshot
+  $('entryCard').style.display = 'none';
+  updateBanner('Round Robin');
+  ensureTournamentExistsOnFirstSave();
+  saveActiveTournament(true);
+  showToast('Teams updated','success');
 }
 
 /* ---------- Group assignment ---------- */
@@ -977,16 +1094,16 @@ function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inn
 function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
 /* ---------- Exports ---------- */
+/* (export functions unchanged from previous version, DUPR CSV etc) */
 function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
 function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
 
 /* ------------------ Small smoke-check patches ------------------
-   These three functions fix the missing handlers and harden the DUPR template branch.
+   These functions were added earlier and retained.
 -----------------------------------------------------------------*/
 function updateQualifierDefaults(){
-  // Called when numGroups input changes.
   try {
     const ng = clampInt($('numGroups').value, 1);
     const qualSel = $('qualPerGroup');
@@ -1001,7 +1118,6 @@ function updateQualifierDefaults(){
 }
 
 function onQualPerGroupManual(){
-  // No-op placeholder so onchange won't throw; can be extended later.
   return;
 }
 
@@ -1026,13 +1142,11 @@ function formatYMD(d){
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Use saved tournament snapshot gameType if present, otherwise use UI control
 function getTournamentGameType() {
   const active = getActiveTournament();
   if (active && active.snapshot && active.snapshot.settings && active.snapshot.settings.gameType) {
     return active.snapshot.settings.gameType; // 'singles' or 'doubles'
   }
-  // fallback to current control
   return ($('gameType') && $('gameType').value) ? $('gameType').value : 'doubles';
 }
 
@@ -1052,7 +1166,6 @@ function duprExportTemplateCsvLines(){
     "teamAGame5","teamBGame5"
   ];
 
-  // matchType letter based on saved snapshot (preferred) then UI control ('S' or 'D')
   const gtype = getTournamentGameType();
   const mt = (gtype === 'singles') ? 'S' : 'D';
 
@@ -1065,7 +1178,6 @@ function duprExportTemplateCsvLines(){
 }
 
 function buildDupRRowFromFixture(f){
-  // matchType should be single letter: 'S' or 'D' — use saved snapshot if present
   const gtype = getTournamentGameType();
   const matchType = (gtype === 'singles') ? 'S' : 'D';
   const eventName = ($('tourneyName') && $('tourneyName').value.trim()) || (getActiveTournament() ? getActiveTournament().name : '') || '';
@@ -1174,6 +1286,43 @@ function exportDupRCSV(){
 
 /* ---------- Helpers used across UI ---------- */
 function updateBanner(stage){ const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
+
+/* ---------- Edit Teams flow (Option C) ---------- */
+/* Opens the edit teams flow: warns if fixtures exist, offers DUPR-only or full edit */
+function openEditTeams(){
+  if (!teams || teams.length === 0) {
+    // If no teams loaded, try to restore from active snapshot if any
+    const active = getActiveTournament();
+    if (active && active.snapshot && active.snapshot.teams) {
+      teams = (active.snapshot.teams || []).map(t => ({ id: t.id || generateId('t'), name: t.name || '', players: (t.players||[]).map(p => ({name:p.name||'',dupr:p.dupr||''})), group: t.group||null, club: t.club||'' }));
+    }
+  }
+
+  if (fixtures && fixtures.length > 0){
+    // show warning overlay with options
+    const overlay = document.createElement('div'); overlay.className='overlay';
+    const box = document.createElement('div'); box.className='dialog-box';
+    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-weight:800;color:#eaf4ff">Edit Teams — Warning</div><button class="btn ghost small" id="closeWarn">Close</button></div>
+      <div style="color:var(--muted);line-height:1.5;margin-bottom:12px;">Fixtures already exist. Editing teams will <strong>not</strong> delete fixtures — team IDs are preserved — but changing names/players may affect interpretation of existing results. Choose an action:</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="dupOnlyBtn">Edit DUPR IDs only</button><button class="btn ghost" id="editAllBtn">Edit all team details</button><button class="btn ghost small" id="cancelWarn">Cancel</button></div>`;
+    overlay.appendChild(box); document.body.appendChild(overlay);
+    box.querySelector('#closeWarn').onclick = () => overlay.remove();
+    box.querySelector('#cancelWarn').onclick = () => overlay.remove();
+    box.querySelector('#dupOnlyBtn').onclick = () => { overlay.remove(); // open entry in editMode dupOnly true
+      // ensure DUPR checkbox enabled so fields exist
+      if (!$('enableDUPR').checked) {
+        if (!confirm('DUPR IDs are currently disabled. Enable DUPR fields for editing?')) return;
+        $('enableDUPR').checked = true;
+      }
+      startEntry(true, true);
+    };
+    box.querySelector('#editAllBtn').onclick = () => { overlay.remove(); startEntry(true, false); };
+    return;
+  }
+
+  // No fixtures: open full edit directly
+  startEntry(true, false);
+}
 
 /* ---------- Init ---------- */
 renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability();
