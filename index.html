@@ -295,6 +295,30 @@
   .save-icon-btn{ background:transparent; border:0; cursor:pointer; padding:6px; border-radius:8px; transition:background .15s; }
   .save-icon-btn:hover{ background:rgba(255,255,255,0.02); }
   .save-icon-btn svg{ display:block; width:20px; height:20px; }
+
+  /* Schedule view styles */
+  .schedule-grid{
+    display:flex;
+    gap:12px;
+    overflow:auto;
+  }
+  .schedule-column{
+    min-width:260px;
+    background:rgba(255,255,255,0.02);
+    padding:10px;
+    border-radius:8px;
+  }
+  .schedule-col-header{
+    font-weight:800;color:#eaf4ff;margin-bottom:8px;font-size:14px;
+  }
+  .court-block{
+    margin-bottom:10px;
+    border-radius:8px;
+    padding:6px;
+    background:rgba(255,255,255,0.015);
+    border:1px solid rgba(255,255,255,0.02);
+  }
+  .court-label{ font-size:13px;font-weight:700;color:var(--muted); margin-bottom:6px; }
 </style>
 </head>
 <body>
@@ -323,12 +347,11 @@
               <label>No. of Courts</label>
               <input id="numCourts" type="number" min="1" value="2">
             </div>
-            <div class="form-item">
+            <div class="form-item" style="display:none;">
+              <!-- removed Court Allocation dropdown: Sequential (Balanced) is the only option now -->
               <label>Court Allocation</label>
-              <select id="courtAlloc">
-                <option value="roundwise" selected>Round-wise</option>
-                <option value="sequential">Sequential (Simple)</option>
-                <option value="balanced">Sequential (Balanced)</option>
+              <select id="courtAlloc" disabled>
+                <option value="balanced" selected>Sequential (Balanced)</option>
               </select>
             </div>
             <div class="form-item">
@@ -415,9 +438,18 @@
         <div id="fixturesCard" class="card" style="margin-top:12px;display:none;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <div class="title">Fixtures — Enter Scores</div>
-            <button class="btn small" onclick="saveActiveTournament(true)">Save</button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button id="toggleScheduleBtn" class="btn small ghost" onclick="toggleScheduleView()">Schedule View</button>
+              <button class="btn small" onclick="saveActiveTournament(true)">Save</button>
+            </div>
           </div>
           <div id="fixturesGrid" class="match-grid"></div>
+
+          <div id="scheduleGridContainer" style="display:none;margin-top:12px;">
+            <div style="margin-bottom:8px;color:var(--muted);font-size:13px;">Schedule View — columns are Time Slots (Round 1 / Round 2 / ...). See gaps and back-to-back load per team.</div>
+            <div id="scheduleGrid" class="schedule-grid"></div>
+          </div>
+
           <div style="margin-top:12px;color:var(--muted);font-size:12.5px;">Enter both scores to count a match • No ties</div>
           <div class="action-row">
             <button class="btn" onclick="generateRankings()">Generate Rankings</button>
@@ -478,9 +510,7 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-/* ==================== FULL JAVASCRIPT (patched) ==================== */
-
-/* ---------- App State ---------- */
+/* ==================== App state & utils ==================== */
 let teams = [];
 let fixtures = [];
 let rankings = {};
@@ -490,15 +520,10 @@ let autosaveTimer = null;
 const AUTOSAVE_DELAY = 800;
 const TOAST_DURATION = 3500;
 
-/* ---------- Storage keys ---------- */
 const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
 const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
-
-/* ---------- DOM helper ---------- */
 const $ = id => document.getElementById(id);
-function updateBanner(stage){ $('stageText').textContent = `Current Stage: ${stage}`; }
 
-/* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
   const container = $('toastContainer');
   if (!container) return console.log('Toast:', message);
@@ -506,15 +531,10 @@ function showToast(message, type = 'success') {
   t.className = `toast ${type}`;
   t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
   container.appendChild(t);
-  const timeout = setTimeout(() => {
-    t.classList.add('fadeOut');
-    setTimeout(() => t.remove(), 260);
-  }, TOAST_DURATION);
+  const timeout = setTimeout(() => { t.classList.add('fadeOut'); setTimeout(()=>t.remove(),260); }, TOAST_DURATION);
   t.addEventListener('click', () => { clearTimeout(timeout); t.classList.add('fadeOut'); setTimeout(()=>t.remove(),220); });
 }
-
-/* ---------- Helpers ---------- */
-function clampInt(v, min=0) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
+function clampInt(v, min=0){ const n=Number(v); return Number.isNaN(n)?min:Math.max(min, Math.floor(n)); }
 function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
 /* ---------- Storage ---------- */
@@ -524,7 +544,7 @@ function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_
 function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
 function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
 
-/* ---------- Snapshot & Restore ---------- */
+/* ---------- Snapshot & restore ---------- */
 function snapshotCurrentState(){
   const settings = {
     gameType: $('gameType').value,
@@ -534,7 +554,6 @@ function snapshotCurrentState(){
     qualPerGroup: Number($('qualPerGroup').value) || 1,
     enableQF: !!$('enableQF')?.checked,
     rrType: $('rrType').value,
-    courtAlloc: $('courtAlloc').value,
     clubs: clubs.slice(),
     duprEnabled: !!$('enableDUPR')?.checked
   };
@@ -546,14 +565,8 @@ function snapshotCurrentState(){
     const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value : '';
     fixtureScores[f.id] = { s1, s2 };
   });
-  const ko = { knockout: null, scores: {} };
-  if (knockout && (knockout.qf || knockout.sf1 || knockout.final || knockout.third)){
-    ko.knockout = knockout;
-    document.querySelectorAll('input.score-input').forEach(inp => { if (inp.id) ko.scores[inp.id] = inp.value || ''; });
-  }
-  return { settings, teams: teamsCopy, fixtures: fixturesCopy, fixtureScores, ko, timestamp: Date.now() };
+  return { settings, teams: teamsCopy, fixtures: fixturesCopy, fixtureScores, timestamp: Date.now() };
 }
-
 function restoreSnapshot(data){
   if (!data) return;
   const s = data.settings || {};
@@ -564,242 +577,81 @@ function restoreSnapshot(data){
   $('qualPerGroup').value = s.qualPerGroup || 2;
   if ($('enableQF')) $('enableQF').checked = !!s.enableQF;
   $('rrType').value = s.rrType || 'within';
-  $('courtAlloc').value = s.courtAlloc || 'roundwise';
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
   if ($('enableDUPR')) $('enableDUPR').checked = !!s.duprEnabled;
-
-  onGameTypeChange();
-  onRRTypeChange();
-
-  teams = (data.teams || []).map(t => ({
-    id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye
-  }));
-
+  onGameTypeChange(); onRRTypeChange();
+  teams = (data.teams || []).map(t => ({ id: t.id, name: t.name, players: t.players || [], group: t.group || null, club: t.club || '', isBye: !!t.isBye }));
   const idToTeam = {}; teams.forEach(tt => idToTeam[tt.id] = tt);
-  fixtures = (data.fixtures || []).map(f => ({
-    id: f.id, matchNum: f.matchNum, court: f.court, group: f.group, round: f.round || null,
-    t1: idToTeam[f.t1Id] || {id:f.t1Id,name:'??',players:[],club:'',isBye:false},
-    t2: idToTeam[f.t2Id] || {id:f.t2Id,name:'??',players:[],club:'',isBye:false}
-  }));
-
-  showGroupSummary();
-  renderFixtures();
-
+  fixtures = (data.fixtures || []).map(f => ({ id: f.id, matchNum: f.matchNum, court: f.court, group: f.group, round: f.round || null, t1: idToTeam[f.t1Id] || {id:f.t1Id,name:'??',players:[],club:''}, t2: idToTeam[f.t2Id] || {id:f.t2Id,name:'??',players:[],club:''} }));
+  showGroupSummary(); renderFixtures();
   const scores = data.fixtureScores || {};
-  Object.keys(scores).forEach(k => {
-    if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || '';
-    if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || '';
-  });
-
-  if (data.ko && data.ko.knockout){
-    knockout = data.ko.knockout;
-    renderAppropriateKnockoutView();
-    const koScores = data.ko.scores || {};
-    Object.keys(koScores).forEach(id => { if ($(id)) $(id).value = koScores[id] || ''; });
-  } else knockout = {};
+  Object.keys(scores).forEach(k => { if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || ''; if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || ''; });
 }
 
-/* ---------- Tournament Save/Load ---------- */
-function makeTimestampName(){
-  const d = new Date();
-  const p = n => String(n).padStart(2,'0');
-  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}`;
-}
+/* ---------- Save/load UI ---------- */
+function makeTimestampName(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}h${p(d.getMinutes())}`; }
+function createTournament(name){ const id='t_'+Math.random().toString(36).slice(2,10); const tournament={ id,name:name||makeTimestampName(),createdAt:new Date().toISOString(),lastSaved:Date.now(), snapshot:snapshotCurrentState() }; const arr=readTournamentStore(); arr.unshift(tournament); writeTournamentStore(arr); setActiveTournamentId(id); renderLoadControl(); renderTournamentInfo(); showToast(`Tournament created: ${tournament.name}`); return tournament; }
+function saveActiveTournament(manual){ const id=getActiveTournamentId(); if (!id){ if (manual) showToast('No active tournament. Save teams first.','warn'); return false; } const arr=readTournamentStore(); const idx=arr.findIndex(t=>t.id===id); const snap=snapshotCurrentState(); const now=Date.now(); if (idx>=0){ arr[idx].snapshot=snap; arr[idx].lastSaved=now; } else { arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap }); } writeTournamentStore(arr); renderLoadControl(); renderTournamentInfo(); if (manual) showToast('Tournament saved','success'); return true; }
+function scheduleAutoSave(){ if (!getActiveTournamentId()) { ensureTournamentExistsOnFirstSave(); } if (!getActiveTournamentId()) return; if (autosaveTimer) clearTimeout(autosaveTimer); autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY); }
+function ensureTournamentExistsOnFirstSave(){ if (getActiveTournamentId()) return; createTournament(makeTimestampName()); }
 
-function createTournament(name){
-  const id = 't_' + Math.random().toString(36).slice(2,10);
-  const tournament = { id, name: name || makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: Date.now(), snapshot: snapshotCurrentState() };
-  const arr = readTournamentStore();
-  arr.unshift(tournament);
-  writeTournamentStore(arr);
-  setActiveTournamentId(id);
-  renderLoadControl();
-  renderTournamentInfo();
-  showToast(`Tournament created: ${tournament.name}`, 'success');
-  return tournament;
-}
-
-function saveActiveTournament(manual){
-  const id = getActiveTournamentId();
-  if (!id) { if (manual) showToast('No active tournament. Save teams first.','warn'); return false; }
-  const arr = readTournamentStore();
-  const idx = arr.findIndex(t => t.id === id);
-  const snap = snapshotCurrentState();
-  const now = Date.now();
-  if (idx >= 0){
-    arr[idx].snapshot = snap;
-    arr[idx].lastSaved = now;
-  } else {
-    arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
-  }
-  writeTournamentStore(arr);
-  renderLoadControl();
-  renderTournamentInfo();
-  if (manual) showToast('Tournament saved','success');
-  return true;
-}
-
-function scheduleAutoSave(){
-  ensureTournamentExistsOnFirstSave();
-  if (!getActiveTournamentId()) return;
-  if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY);
-}
-
-function ensureTournamentExistsOnFirstSave(){
-  if (getActiveTournamentId()) return;
-  createTournament(makeTimestampName());
-}
-
-/* ---------- Load Dialog ---------- */
-function renderLoadControl(){
-  const arr = readTournamentStore();
-  const btn = $('loadBtn');
-  if (btn) btn.style.display = arr.length ? 'inline-block' : 'none';
-}
+function renderLoadControl(){ const arr = readTournamentStore(); const btn = $('loadBtn'); if (btn) btn.style.display = arr.length ? 'inline-block' : 'none'; }
 
 function openLoadDialog(){
   const arr = readTournamentStore();
   if (!arr.length) return showToast('No saved tournaments.','warn');
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,15,0.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
-  const box = document.createElement('div');
-  box.style.cssText = 'width:min(680px,95%);max-height:80%;overflow:auto;background:var(--card-bg);border-radius:10px;padding:16px;box-shadow:0 10px 40px rgba(2,6,23,0.6);';
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-weight:800;color:#eaf4ff">Load Tournament</div>
-      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
-    </div>
-    <div id="loadList" style="display:flex;flex-direction:column;gap:8px;"></div>`;
-  overlay.className = 'overlay';
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-
+  const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,15,0.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  const box = document.createElement('div'); box.style.cssText = 'width:min(680px,95%);max-height:80%;overflow:auto;background:var(--card-bg);border-radius:10px;padding:16px;box-shadow:0 10px 40px rgba(2,6,23,0.6);';
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-weight:800;color:#eaf4ff">Load Tournament</div><button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button></div><div id="loadList" style="display:flex;flex-direction:column;gap:8px;"></div>`;
+  overlay.className='overlay'; overlay.appendChild(box); document.body.appendChild(overlay);
   const list = box.querySelector('#loadList');
   arr.forEach(t => {
-    const div = document.createElement('div');
-    div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;';
-    div.innerHTML = `<div>
-        <div style="font-weight:700;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div>
-        <div style="font-size:12px;color:var(--muted)">${new Date(t.lastSaved||t.createdAt).toLocaleString()}</div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn small" data-id="${t.id}">Load</button>
-        <button class="btn ghost small" data-del="${t.id}">Delete</button>
-      </div>`;
+    const div = document.createElement('div'); div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;';
+    div.innerHTML = `<div><div style="font-weight:700;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.name}</div><div style="font-size:12px;color:var(--muted)">${new Date(t.lastSaved||t.createdAt).toLocaleString()}</div></div><div style="display:flex;gap:8px;"><button class="btn small" data-id="${t.id}">Load</button><button class="btn ghost small" data-del="${t.id}">Delete</button></div>`;
     list.appendChild(div);
   });
-
   box.addEventListener('click', e => {
-    const loadBtn = e.target.closest('button[data-id]');
-    const delBtn = e.target.closest('button[data-del]');
+    const loadBtn = e.target.closest('button[data-id]'); const delBtn = e.target.closest('button[data-del]');
     if (loadBtn){
-      const id = loadBtn.dataset.id;
-      const tourney = readTournamentStore().find(x=>x.id===id);
+      const id = loadBtn.dataset.id; const tourney = readTournamentStore().find(x=>x.id===id);
       if (!tourney) return showToast('Not found','error');
       if (!confirm(`Load "${tourney.name}"? Current data will be replaced.`)) return;
-      setActiveTournamentId(id);
-      restoreSnapshot(tourney.snapshot);
-      renderTournamentInfo();
-      overlay.remove();
-      showToast(`Loaded: ${tourney.name}`,'success');
+      setActiveTournamentId(id); restoreSnapshot(tourney.snapshot); renderTournamentInfo(); overlay.remove(); showToast(`Loaded: ${tourney.name}`,'success');
     }
     if (delBtn){
       if (!confirm('Delete permanently?')) return;
-      let store = readTournamentStore();
-      store = store.filter(x=>x.id !== delBtn.dataset.del);
-      writeTournamentStore(store);
-      overlay.remove();
-      renderLoadControl();
-      showToast('Deleted','success');
+      let store = readTournamentStore(); store = store.filter(x=>x.id !== delBtn.dataset.del); writeTournamentStore(store); overlay.remove(); renderLoadControl(); showToast('Deleted','success');
     }
   });
 }
 
-/* ---------- Tournament Info ---------- */
-function renderTournamentInfo(){
-  const info = $('tournamentInfo');
-  const active = getActiveTournament();
-  if (!info) return;
-  if (!active) { info.style.display='none'; return; }
-  info.style.display='flex';
-  $('tourneyName').value = active.name || '';
-  $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`;
-}
+/* ---------- Tournament info ---------- */
+function renderTournamentInfo(){ const info = $('tournamentInfo'); const active = getActiveTournament(); if (!info) return; if (!active) { info.style.display='none'; return; } info.style.display='flex'; $('tourneyName').value = active.name || ''; $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`; }
+function renameActiveTournament(){ const id = getActiveTournamentId(); if (!id) return showToast('No active tournament','warn'); const newName = $('tourneyName').value.trim(); if (!newName) return showToast('Enter a name','warn'); const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return; arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success'); }
 
-function renameActiveTournament(){
-  const id = getActiveTournamentId();
-  if (!id) return showToast('No active tournament','warn');
-  const newName = $('tourneyName').value.trim();
-  if (!newName) return showToast('Enter a name','warn');
-  const arr = readTournamentStore();
-  const idx = arr.findIndex(x=>x.id===id);
-  if (idx<0) return;
-  arr[idx].name = newName;
-  arr[idx].lastSaved = Date.now();
-  writeTournamentStore(arr);
-  renderTournamentInfo();
-  showToast('Renamed','success');
-}
-
-/* ---------- UI Helpers ---------- */
-function onGameTypeChange(){
-  const type = $('gameType').value;
-  $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
-  $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
-}
-
-function onRRTypeChange(){
-  const rr = $('rrType').value;
-  $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
-}
+/* ---------- UI helpers ---------- */
+function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; }
+function onRRTypeChange(){ const rr = $('rrType').value; $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none'; }
 
 /* ---------- Club Management ---------- */
 function openClubDialog(){
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-  const box = document.createElement('div');
-  box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3>
-      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
-    </div>
-    <div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <div style="margin-top:16px;display:flex;gap:8px;">
-      <button id="addClubBtn" class="btn small ghost">+ Add Club</button>
-    </div>
-    <div style="margin-top:12px;text-align:right;">
-      <button class="btn small" onclick="saveActiveTournament(true);this.closest('.overlay').remove();showToast('Clubs saved','success')">Save & Close</button>
-    </div>`;
-  overlay.className='overlay';
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
+  const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  const box = document.createElement('div'); box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3><button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button></div><div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div><div style="margin-top:16px;display:flex;gap:8px;"><button id="addClubBtn" class="btn small ghost">+ Add Club</button></div><div style="margin-top:12px;text-align:right;"><button class="btn small" onclick="saveActiveTournament(true);this.closest('.overlay').remove();showToast('Clubs saved','success')">Save & Close</button></div>`;
+  overlay.className='overlay'; overlay.appendChild(box); document.body.appendChild(overlay);
 
   function renderClubs(){
-    const list = box.querySelector('#clubList');
-    list.innerHTML = '';
+    const list = box.querySelector('#clubList'); list.innerHTML = '';
     clubs.forEach((c,i) => {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;';
-      row.innerHTML = `<span style="font-weight:600;">${c}</span>
-        <div>
-          <button class="btn ghost small" ${i===0?'disabled':''} data-dir="up" data-i="${i}">↑</button>
-          <button class="btn ghost small" ${i===clubs.length-1?'disabled':''} data-dir="down" data-i="${i}">↓</button>
-          <button class="btn ghost small" data-del="${i}">Delete</button>
-        </div>`;
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;';
+      row.innerHTML = `<span style="font-weight:600;">${c}</span><div><button class="btn ghost small" ${i===0?'disabled':''} data-dir="up" data-i="${i}">↑</button><button class="btn ghost small" ${i===clubs.length-1?'disabled':''} data-dir="down" data-i="${i}">↓</button><button class="btn ghost small" data-del="${i}">Delete</button></div>`;
       list.appendChild(row);
     });
   }
   renderClubs();
-
   box.querySelector('#addClubBtn').onclick = () => {
-    const name = prompt('Club name:')?.trim();
-    if (!name) return;
-    if (clubs.includes(name)) return showToast('Already exists','warn');
-    clubs.push(name);
-    renderClubs();
-    updateClubDropdowns();
+    const name = prompt('Club name:')?.trim(); if (!name) return; if (clubs.includes(name)) return showToast('Already exists','warn'); clubs.push(name); renderClubs(); updateClubDropdowns();
   };
-
   box.addEventListener('click', e => {
     const btn = e.target;
     if (btn.dataset.dir){
@@ -808,78 +660,34 @@ function openClubDialog(){
       if (btn.dataset.dir==='down' && i<clubs.length-1){ [clubs[i],clubs[i+1]]=[clubs[i+1],clubs[i]]; renderClubs(); }
       updateClubDropdowns();
     }
-    if (btn.dataset.del!==undefined){
-      clubs.splice(Number(btn.dataset.del),1);
-      renderClubs();
-      updateClubDropdowns();
-    }
+    if (btn.dataset.del!==undefined){ clubs.splice(Number(btn.dataset.del),1); renderClubs(); updateClubDropdowns(); }
   });
 }
-
-function updateClubDropdowns(){
-  document.querySelectorAll('select[id^="club_"]').forEach(sel => {
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join('');
-    if (clubs.includes(cur)) sel.value = cur;
-  });
-}
+function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
 /* ---------- Entry ---------- */
 function startEntry(){
-  const n = clampInt($('numTeams').value, 2);
-  if (n < 2) return showToast('Minimum 2 participants','warn');
-  const type = $('gameType').value;
-  const dupr = $('enableDUPR').checked;
-  const clubRR = $('rrType').value === 'club';
-  
-  // PATCH: when Across Clubs but no clubs exist → open modal
-  if (clubRR && clubs.length===0) { 
-    openClubDialog(); 
-    showToast('No clubs found — please add clubs before entering teams.','warn');
-    return; 
-  }
-
+  const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
+  const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
+  if (clubRR && clubs.length===0) { openClubDialog(); showToast('No clubs found — please add clubs before entering teams.','warn'); return; }
   let html = '';
   for(let i=1;i<=n;i++){
-    const idx = i;
     html += `<div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;margin-bottom:12px;">`;
     if(type==='singles'){
-      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;">
-          ${dupr ? `<input id="dA_${i}" type="text" placeholder="DUPR" style="width:120px;">` : ''}
-        </div>`;
+      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label><div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR" style="width:120px;">`:''}</div>`;
       if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
     } else {
-      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;">
-          <div>
-            <input id="pA_${i}" type="text" placeholder="Player A">
-            ${dupr ? `<input id="dA_${i}" type="text" placeholder="DUPR A" style="margin-top:4px;">` : ''}
-          </div>
-          <div>
-            <input id="pB_${i}" type="text" placeholder="Player B">
-            ${dupr ? `<input id="dB_${i}" type="text" placeholder="DUPR B" style="margin-top:4px;">` : ''}
-          </div>
-        </div>`;
+      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;"><div><input id="pA_${i}" type="text" placeholder="Player A">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR A" style="margin-top:4px;">`:''}</div><div><input id="pB_${i}" type="text" placeholder="Player B">${dupr?`<input id="dB_${i}" type="text" placeholder="DUPR B" style="margin-top:4px;">`:''}</div></div>`;
       if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
     }
     html += `</div>`;
   }
-  html += `<div class="action-row">
-    <button class="btn" onclick="saveTeams();showToast('Teams saved','success');">Save Teams</button>
-    <button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button>
-  </div>`;
-  $('entryInner').innerHTML = html;
-  $('entryCard').style.display = 'block';
-  updateBanner('Entry');
+  html += `<div class="action-row"><button class="btn" onclick="saveTeams();showToast('Teams saved','success');">Save Teams</button><button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button></div>`;
+  $('entryInner').innerHTML = html; $('entryCard').style.display = 'block'; updateBanner('Entry');
 }
 
 function saveTeams(){
-  const n = clampInt($('numTeams').value);
-  const type = $('gameType').value;
-  const dupr = $('enableDUPR').checked;
-  const clubRR = $('rrType').value === 'club';
+  const n = clampInt($('numTeams').value); const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
   teams = [];
   for(let i=1;i<=n;i++){
     const nameA = $(`pA_${i}`)?.value.trim() || (type==='singles'?`Player ${i}`:`P${i}A`);
@@ -890,202 +698,189 @@ function saveTeams(){
     const players = type==='singles' ? [{name:nameA,dupr:duprA}] : [{name:nameA,dupr:duprA},{name:nameB,dupr:duprB}];
     teams.push({id:generateId('t'), name: type==='singles'?nameA:`Team ${i}`, players, group:null, club, isBye:false});
   }
-  assignGroups();
-  $('entryCard').style.display='none';
-  updateBanner('Round Robin');
-  ensureTournamentExistsOnFirstSave();
-  saveActiveTournament(true);
+  assignGroups(); $('entryCard').style.display='none'; updateBanner('Round Robin'); ensureTournamentExistsOnFirstSave(); saveActiveTournament(true);
 }
 
-/* ---------- Group Assignment ---------- */
-function assignGroups(){
-  const numGroups = clampInt($('numGroups').value,1);
-  teams.forEach((t,i)=> t.group = (i % numGroups) + 1);
-  showGroupSummary();
-}
+/* ---------- Group assignment ---------- */
+function assignGroups(){ const numGroups = clampInt($('numGroups').value,1); teams.forEach((t,i)=> t.group = (i % numGroups) + 1); showGroupSummary(); }
 
 function showGroupSummary(){
-  let html = '';
-  const groups = {};
+  let html=''; const groups={};
   teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
   Object.keys(groups).sort().forEach(g=>{
     html += `<div class="card" style="margin-top:12px;"><div class="title">Group ${g} (${groups[g].length} teams)</div><div style="display:grid;gap:8px;">`;
-    groups[g].forEach(t=>{
-      const players = t.players.map(p=>p.name + (p.dupr?` (${p.dupr})`:``)).join(' / ');
-      html += `<div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;">
-        <div style="font-weight:600;">${t.name}${t.club?` — ${t.club}`:''}</div>
-        <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${players}</div>
-      </div>`;
-    });
+    groups[g].forEach(t=>{ const players=t.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '); html+=`<div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;"><div style="font-weight:600;">${t.name}${t.club?` — ${t.club}`:''}</div><div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${players}</div></div>`; });
     html += `</div></div>`;
   });
-  $('summaryInner').innerHTML = html;
-  $('summaryCard').style.display = 'block';
-  $('fixturesCard').style.display = 'none';
-  $('rankingsCard').style.display = 'none';
-  $('knockoutsCard').style.display = 'none';
-  updateBanner('Summary');
+  $('summaryInner').innerHTML = html; $('summaryCard').style.display='block'; $('fixturesCard').style.display='none'; $('rankingsCard').style.display='none'; $('knockoutsCard').style.display='none'; updateBanner('Summary');
 }
 
-/* ---------- Fixture Generation (CORRECTED) ---------- */
+/* ---------- Fixtures generation (balanced allocator only) ---------- */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
   fixtures = [];
   const rrType = $('rrType').value;
-  const courtAlloc = $('courtAlloc').value;
   const courts = clampInt($('numCourts').value,1);
 
   if (rrType==='within'){
-    // Within each numeric group: every pair inside same group
-    const groups = {};
-    teams.forEach(t=> { if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
-    let matchNum = 1;
-    Object.keys(groups).forEach(g=>{
-      const groupTeams = groups[g];
-      for(let i=0;i<groupTeams.length;i++){
-        for(let j=i+1;j<groupTeams.length;j++){
-          const t1 = groupTeams[i], t2 = groupTeams[j];
-          fixtures.push({id:generateId('m'), matchNum:matchNum++, group:Number(g), t1, t2, court:null, round:null});
-        }
-      }
-    });
+    const groups={}; teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
+    let matchNum=1;
+    Object.keys(groups).forEach(g=>{ const groupTeams = groups[g]; for(let i=0;i<groupTeams.length;i++){ for(let j=i+1;j<groupTeams.length;j++){ const t1=groupTeams[i], t2=groupTeams[j]; fixtures.push({id:generateId('m'), matchNum:matchNum++, group:Number(g), t1, t2, court:null, round:null}); } } });
   } else if (rrType==='across'){
-    // Across all teams: all pairs
-    for(let i=0;i<teams.length;i++){
-      for(let j=i+1;j<teams.length;j++){
-        fixtures.push({id:generateId('m'), matchNum:fixtures.length+1, group:null, t1:teams[i], t2:teams[j], court:null, round:null});
-      }
-    }
+    for(let i=0;i<teams.length;i++){ for(let j=i+1;j<teams.length;j++){ fixtures.push({id:generateId('m'), matchNum:fixtures.length+1, group:null, t1:teams[i], t2:teams[j], court:null, round:null}); } }
   } else if (rrType==='club'){
-    // ACROSS CLUBS (fixed): generate only inter-club matches — teams from DIFFERENT clubs
-    // Treat empty/blank club as 'Unassigned' (so two unassigned teams are considered same and will NOT play each other)
-    function clubKey(t){
-      return (t.club || '').trim() || '__UNASSIGNED__';
-    }
-    let matchNum = 1;
-    for (let i=0;i<teams.length;i++){
-      for (let j=i+1;j<teams.length;j++){
-        const a = teams[i], b = teams[j];
-        const ca = clubKey(a), cb = clubKey(b);
-        // include only if clubs differ
-        if (ca !== cb){
-          fixtures.push({id:generateId('m'), matchNum:matchNum++, group:null, t1:a, t2:b, court:null, round:null});
-        }
+    function clubKey(t){ return (t.club || '').trim() || '__UNASSIGNED__'; }
+    let matchNum=1;
+    for(let i=0;i<teams.length;i++){ for(let j=i+1;j<teams.length;j++){ const a=teams[i], b=teams[j]; const ca=clubKey(a), cb=clubKey(b); if (ca !== cb) fixtures.push({id:generateId('m'), matchNum:matchNum++, group:null, t1:a, t2:b, court:null, round:null}); } }
+  }
+
+  // Balanced allocator (always used now)
+  const rounds = []; // array of arrays length=courts
+  const lastPlayedRound = {}; // teamId -> last round index
+  const courtLoads = Array.from({length:courts}, ()=>0);
+
+  fixtures.forEach(f=>{
+    let best = null;
+    for (let r=0;r<rounds.length;r++){
+      const teamsInRound = new Set();
+      for (let c=0;c<courts;c++){ const mf = rounds[r][c]; if (mf){ teamsInRound.add(mf.t1.id); teamsInRound.add(mf.t2.id); } }
+      if (teamsInRound.has(f.t1.id) || teamsInRound.has(f.t2.id)) continue;
+      for (let c=0;c<courts;c++){
+        if (rounds[r][c]) continue;
+        const backPenalty = ((lastPlayedRound[f.t1.id] === r-1) ? 1 : 0) + ((lastPlayedRound[f.t2.id] === r-1) ? 1 : 0);
+        const courtLoadPenalty = courtLoads[c];
+        const penalty = backPenalty * 10 + courtLoadPenalty;
+        if (!best || penalty < best.penalty) best = { r, c, penalty, backPenalty, courtLoadPenalty };
       }
     }
-  }
+    if (best){
+      rounds[best.r][best.c] = f;
+      f.round = best.r + 1;
+      f.court = best.c + 1;
+      lastPlayedRound[f.t1.id] = best.r;
+      lastPlayedRound[f.t2.id] = best.r;
+      courtLoads[best.c] += 1;
+    } else {
+      const newRoundIndex = rounds.length;
+      const newRound = Array.from({length:courts}, ()=>null);
+      let minCourt = 0;
+      for (let c=1;c<courts;c++){ if (courtLoads[c] < courtLoads[minCourt]) minCourt = c; }
+      newRound[minCourt] = f;
+      rounds.push(newRound);
+      f.round = newRoundIndex + 1;
+      f.court = minCourt + 1;
+      lastPlayedRound[f.t1.id] = newRoundIndex;
+      lastPlayedRound[f.t2.id] = newRoundIndex;
+      courtLoads[minCourt] += 1;
+    }
+  });
 
-  // Court allocation
-  if (courtAlloc==='roundwise'){
-    let round = 1;
-    fixtures.forEach((f,i)=>{
-      f.round = round;
-      f.court = (i % courts) + 1;
-      if ((i+1) % courts === 0) round++;
-    });
-  } else {
-    fixtures.forEach((f,i)=> f.court = (i % courts) + 1);
-  }
-
-  renderFixtures();
-  $('fixturesCard').style.display = 'block';
-  $('summaryCard').style.display = 'none';
-  updateBanner('Fixtures');
-  scheduleAutoSave();
+  renderFixtures(); $('fixturesCard').style.display='block'; $('summaryCard').style.display='none'; updateBanner('Fixtures'); scheduleAutoSave();
 }
 
-/* ---------- Render Fixtures (UI) ---------- */
+/* ---------- Render fixtures (enter-scores view) ---------- */
 function renderFixtures(){
-  const grid = $('fixturesGrid');
-  grid.innerHTML = '';
-  const rounds = {};
-  fixtures.forEach(f=>{ if(!rounds[f.round||'all']) rounds[f.round||'all']=[]; rounds[f.round||'all'].push(f); });
+  const grid = $('fixturesGrid'); grid.innerHTML = '';
+  const roundsMap = {};
+  fixtures.forEach(f => { const key = f.round || 'all'; if (!roundsMap[key]) roundsMap[key] = []; roundsMap[key].push(f); });
   const courts = clampInt($('numCourts').value,1);
   const wide = window.matchMedia('(min-width:900px)').matches;
 
-  Object.keys(rounds).sort((a,b)=>a===b?0:(a==='all'?1:b==='all'?-1:Number(a)-Number(b))).forEach(r=>{
-    const roundDiv = document.createElement('div');
-    roundDiv.innerHTML = `<div class="match-title">${r==='all'?'All Matches':`Round ${r}`}</div>`;
+  Object.keys(roundsMap).sort((a,b)=>a===b?0:(a==='all'?1:b==='all'?-1:Number(a)-Number(b))).forEach(r=>{
+    const roundDiv = document.createElement('div'); roundDiv.innerHTML = `<div class="match-title">${r==='all'?'All Matches':`Round ${r}`}</div>`;
     const inner = document.createElement('div');
 
     if (wide && courts > 1){
-      inner.style.display = 'grid';
-      inner.style.gridTemplateColumns = `repeat(${courts}, 1fr)`;
-      inner.style.gap = '12px';
-
+      inner.style.display = 'grid'; inner.style.gridTemplateColumns = `repeat(${courts}, 1fr)`; inner.style.gap = '12px';
       const cols = Array.from({length:courts}, ()=>document.createElement('div'));
       cols.forEach(c => { c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='12px'; });
-
-      rounds[r].forEach(f=>{
-        const card = document.createElement('div');
-        card.className='match-card';
+      roundsMap[r].forEach(f=>{
+        const card = document.createElement('div'); card.className='match-card';
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
-        card.innerHTML = `
-          <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="flex:1;">
-              <div class="team-label">${f.t1.name}</div>
-              <div class="team-players">${players1}</div>
-            </div>
-            <input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-          </div>
+        card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="flex:1;">
-              <div class="team-label">${f.t2.name}</div>
-              <div class="team-players">${players2}</div>
-            </div>
-            <input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-          </div>`;
-        const columnIndex = (f.court ? (f.court-1) : 0);
-        cols[columnIndex].appendChild(card);
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
+        const columnIndex = (f.court ? (f.court-1) : 0); cols[columnIndex].appendChild(card);
       });
-
       cols.forEach((colEl, idx) => {
-        const wrapper = document.createElement('div');
-        wrapper.style.display = 'flex'; wrapper.style.flexDirection='column'; wrapper.style.gap='10px';
-        const hdr = document.createElement('div');
-        hdr.style.fontWeight='700'; hdr.style.color='#eaf4ff'; hdr.style.marginBottom='6px';
-        hdr.textContent = `Court ${idx+1}`;
-        wrapper.appendChild(hdr);
-        wrapper.appendChild(colEl);
-        inner.appendChild(wrapper);
+        const wrapper = document.createElement('div'); wrapper.style.display='flex'; wrapper.style.flexDirection='column'; wrapper.style.gap='10px';
+        const hdr = document.createElement('div'); hdr.style.fontWeight='700'; hdr.style.color='#eaf4ff'; hdr.style.marginBottom='6px'; hdr.textContent = `Court ${idx+1}`;
+        wrapper.appendChild(hdr); wrapper.appendChild(colEl); inner.appendChild(wrapper);
       });
-
     } else {
-      inner.style.display='grid';
-      inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))';
-      inner.style.gap='12px';
-      rounds[r].forEach(f=>{
-        const card = document.createElement('div');
-        card.className='match-card';
+      inner.style.display='grid'; inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))'; inner.style.gap='12px';
+      roundsMap[r].forEach(f=>{
+        const card = document.createElement('div'); card.className='match-card';
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
-        card.innerHTML = `
-          <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="flex:1;">
-              <div class="team-label">${f.t1.name}</div>
-              <div class="team-players">${players1}</div>
-            </div>
-            <input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-          </div>
+        card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <div style="flex:1;">
-              <div class="team-label">${f.t2.name}</div>
-              <div class="team-players">${players2}</div>
-            </div>
-            <input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-          </div>`;
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
         inner.appendChild(card);
       });
     }
 
-    roundDiv.appendChild(inner);
-    grid.appendChild(roundDiv);
+    roundDiv.appendChild(inner); grid.appendChild(roundDiv);
   });
+
+  // ensure schedule view is updated too (if visible)
+  if ($('scheduleGridContainer').style.display !== 'none') renderScheduleView();
+}
+
+/* ---------- Schedule view rendering ---------- */
+function toggleScheduleView(){
+  const scheduleContainer = $('scheduleGridContainer');
+  const fixturesGrid = $('fixturesGrid');
+  const btn = $('toggleScheduleBtn');
+  if (scheduleContainer.style.display === 'none' || scheduleContainer.style.display === ''){
+    scheduleContainer.style.display = 'block';
+    fixturesGrid.style.display = 'none';
+    btn.textContent = 'Enter Scores View';
+    renderScheduleView();
+  } else {
+    scheduleContainer.style.display = 'none';
+    fixturesGrid.style.display = 'grid';
+    btn.textContent = 'Schedule View';
+  }
+}
+
+function renderScheduleView(){
+  const container = $('scheduleGrid');
+  container.innerHTML = '';
+  if (!fixtures || !fixtures.length) { container.innerHTML = '<div style="color:var(--muted)">No fixtures yet</div>'; return; }
+  // compute max round
+  const maxRound = Math.max(...fixtures.map(f => f.round || 1));
+  const courts = clampInt($('numCourts').value,1);
+
+  // for each round, build per-court list
+  for (let r = 1; r <= maxRound; r++){
+    const col = document.createElement('div'); col.className = 'schedule-column';
+    const header = document.createElement('div'); header.className = 'schedule-col-header'; header.textContent = `Round ${r}`;
+    col.appendChild(header);
+    // for each court, list match (if any) for this round
+    for (let c = 1; c <= courts; c++){
+      const courtBlock = document.createElement('div'); courtBlock.className = 'court-block';
+      const courtLabel = document.createElement('div'); courtLabel.className = 'court-label'; courtLabel.textContent = `Court ${c}`;
+      courtBlock.appendChild(courtLabel);
+      const match = fixtures.find(f => (f.round === r) && (f.court === c));
+      if (match){
+        const p1 = document.createElement('div'); p1.style.marginBottom='6px';
+        p1.innerHTML = `<div style="font-weight:700">${match.t1.name}</div><div style="font-size:12px;color:var(--muted)">${match.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
+        const vs = document.createElement('div'); vs.style.textAlign='center'; vs.style.fontWeight='800'; vs.style.margin='8px 0'; vs.textContent='vs';
+        const p2 = document.createElement('div');
+        p2.innerHTML = `<div style="font-weight:700">${match.t2.name}</div><div style="font-size:12px;color:var(--muted)">${match.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
+        courtBlock.appendChild(p1); courtBlock.appendChild(vs); courtBlock.appendChild(p2);
+      } else {
+        const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.fontSize='13px'; empty.textContent = '— idle —';
+        courtBlock.appendChild(empty);
+      }
+      col.appendChild(courtBlock);
+    }
+    container.appendChild(col);
+  }
 }
 
 /* ---------- Rankings ---------- */
@@ -1104,15 +899,13 @@ function generateRankings(){
     teamStats[f.t1.id].pf += s1; teamStats[f.t1.id].pa += s2;
     teamStats[f.t2.id].pf += s2; teamStats[f.t2.id].pa += s1;
     if (s1>s2){
-      teamStats[f.t1.id].won++; teamStats[f.t1.id].pts += 3;
-      teamStats[f.t2.id].lost++;
+      teamStats[f.t1.id].won++; teamStats[f.t1.id].pts += 3; teamStats[f.t2.id].lost++;
     } else {
-      teamStats[f.t2.id].won++; teamStats[f.t2.id].pts += 3;
-      teamStats[f.t1.id].lost++;
+      teamStats[f.t2.id].won++; teamStats[f.t2.id].pts += 3; teamStats[f.t1.id].lost++;
     }
   });
 
-  Object.values(teamStats).forEach(s=>{ s.pd = s.pf - s.pa; });
+  Object.values(teamStats).forEach(s=> s.pd = s.pf - s.pa );
 
   const sorted = Object.values(teamStats).sort((a,b)=>{
     if (b.pts !== a.pts) return b.pts - a.pts;
@@ -1122,135 +915,24 @@ function generateRankings(){
   });
 
   let html = '<table class="white-table"><thead><tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>';
-  sorted.forEach((s,i)=>{
-    const players = s.t.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
-    html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td>
-      <td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`;
-  });
+  sorted.forEach((s,i)=>{ const players = s.t.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '); html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td><td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`; });
   html += '</tbody></table>';
-  $('rankingsInner').innerHTML = html;
-  $('rankingsCard').style.display='block';
-  $('fixturesCard').style.display='none';
-  updateBanner('Rankings');
+  $('rankingsInner').innerHTML = html; $('rankingsCard').style.display='block'; $('fixturesCard').style.display='none'; updateBanner('Rankings');
 }
 
 /* ---------- Knockouts ---------- */
-function proceedToKnockouts(){
-  const qualPer = Number($('qualPerGroup').value);
-  const groups = {};
-  teams.forEach(t=> { if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
-  const qualifiers = [];
-  Object.keys(groups).forEach(g=>{
-    const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{
-      const sa = rankings[a.id] || {}, sb = rankings[b.id] || {};
-      if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0);
-      return 0;
-    });
-    qualifiers.push(...ranked.slice(0,qualPer));
-  });
+function proceedToKnockouts(){ const qualPer = Number($('qualPerGroup').value); const groups={}; teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); }); const qualifiers=[]; Object.keys(groups).forEach(g=>{ const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{ const sa=rankings[a.id]||{}, sb=rankings[b.id]||{}; if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0); return 0; }); qualifiers.push(...ranked.slice(0,qualPer)); }); const totalQual = qualifiers.length; const enableQF = $('enableQF').checked && totalQual >= 8; const stages = enableQF ? 8 : (totalQual >= 4 ? 4 : 2); knockout = { qualifiers, stages, qf:null, sf1:null, sf2:null, final:null, third:null }; renderAppropriateKnockoutView(); $('knockoutsCard').style.display='block'; $('rankingsCard').style.display='none'; updateBanner('Knockouts'); }
+function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML=''; const q = knockout.qualifiers || []; if (knockout.stages===8){ const matches=[{t1:q[0],t2:q[7]},{t1:q[3],t2:q[4]},{t1:q[1],t2:q[6]},{t1:q[2],t2:q[5]}]; inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>'; inner.innerHTML += renderKOBracket(matches,'qf'); knockout.qf = matches; } if (knockout.stages>=4){ inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>'; const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]]; const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]]; inner.innerHTML += renderKOBracket([sf1,sf2],'sf'); } inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>'; inner.innerHTML += renderKOBracket([null],'final'); if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third'); }
+function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
-  const totalQual = qualifiers.length;
-  const enableQF = $('enableQF').checked && totalQual >= 8;
-  const stages = enableQF ? 8 : (totalQual >= 4 ? 4 : 2);
-
-  knockout = { qualifiers, stages, qf:null, sf1:null, sf2:null, final:null, third:null };
-  renderAppropriateKnockoutView();
-  $('knockoutsCard').style.display='block';
-  $('rankingsCard').style.display='none';
-  updateBanner('Knockouts');
-}
-
-function renderAppropriateKnockoutView(){
-  const inner = $('knockoutsInner');
-  inner.innerHTML = '';
-  const q = knockout.qualifiers || [];
-  if (knockout.stages===8){
-    const matches = [
-      {t1:q[0],t2:q[7]}, {t1:q[3],t2:q[4]},
-      {t1:q[1],t2:q[6]}, {t1:q[2],t2:q[5]}
-    ];
-    inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>';
-    inner.innerHTML += renderKOBracket(matches,'qf');
-    knockout.qf = matches;
-  }
-  if (knockout.stages>=4){
-    inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>';
-    const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]];
-    const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]];
-    inner.innerHTML += renderKOBracket([sf1,sf2],'sf');
-  }
-  inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>';
-  inner.innerHTML += renderKOBracket([null],'final');
-  if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third');
-}
-
-function renderKOBracket(matches, stage){
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">';
-  matches.forEach((m,i)=>{
-    const t1 = m ? (m.t1 || m[0]) : null;
-    const t2 = m ? (m.t2 || m[1]) : null;
-    const id1 = stage + (i+1) + '_1';
-    const id2 = stage + (i+1) + '_2';
-    html += `<div class="match-card">
-      <div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div>
-        <input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-      </div>
-      <div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div>
-        <input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
-      </div>
-    </div>`;
-  });
-  html += '</div>';
-  return html;
-}
-
-/* ---------- Export Functions (CSV & PDF) ---------- */
-function exportCSV(){
-  let csv = 'Team,Played,Won,Lost,PF,PA,PD,Points\n';
-  const stats = {};
-  teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0});
-  fixtures.forEach(f=>{
-    const s1 = Number($(`s1-${f.id}`)?.value||0);
-    const s2 = Number($(`s2-${f.id}`)?.value||0);
-    if(!s1&&!s2) return;
-    stats[f.t1.id].played++; stats[f.t2.id].played++;
-    stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2;
-    stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1;
-    if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; }
-    stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won;
-    stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won;
-  });
-  teams.forEach(t=>{
-    const s = stats[t.id];
-    const pd = s.pf - s.pa;
-    const pts = s.won*3;
-    csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`;
-  });
-  const blob = new Blob([csv],{type:'text/csv'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href=url; a.download='pickleball_rankings.csv'; a.click();
-}
-
-function exportSummaryPDF(){
-  showToast('PDF export requires jsPDF (not included in this version)','warn');
-}
-
-function exportSchedulePDF(){
-  showToast('Schedule PDF export ready in full version','success');
-}
-
-function printSchedule(){
-  window.print();
-}
+/* ---------- Exports ---------- */
+function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
+function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
+function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
+function printSchedule(){ window.print(); }
 
 /* ---------- Init ---------- */
-renderLoadControl();
-renderTournamentInfo();
+renderLoadControl(); renderTournamentInfo();
 
 </script>
 </body>
