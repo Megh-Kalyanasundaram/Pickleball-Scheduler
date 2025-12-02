@@ -310,7 +310,7 @@
 
             <div class="form-item">
               <label>No. of Courts</label>
-              <input id="numCourts" type="number" min="1" value="3">
+              <input id="numCourts" type="number" min="1" value="2">
             </div>
 
             <div class="form-item">
@@ -541,7 +541,7 @@ function restoreSnapshot(data){
   const s = data.settings || {};
   $('gameType').value = s.gameType || 'doubles';
   $('numTeams').value = s.numTeams || 8;
-  $('numCourts').value = s.numCourts || 3;
+  $('numCourts').value = s.numCourts || 2;
   $('numGroups').value = s.numGroups || 2;
   $('qualPerGroup').value = (typeof s.qualPerGroup !== 'undefined') ? String(s.qualPerGroup) : '2';
   if ($('enableQF')) $('enableQF').checked = !!s.enableQF;
@@ -782,7 +782,7 @@ function showGroupSummary(){
   $('summaryInner').innerHTML = html; $('summaryCard').style.display='block'; $('fixturesCard').style.display='none'; $('rankingsCard').style.display='none'; $('knockoutsCard').style.display='none'; updateBanner('Summary');
 }
 
-/* ---------- Fixtures generation (deterministic Berger-like + placement + rebalancer + fixes) ---------- */
+/* ---------- Fixtures generation (deterministic Berger-like + placement + rebalancer) ---------- */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
   fixtures = [];
@@ -791,8 +791,14 @@ function generateFixtures(){
 
   /*************************************************************************
    * 1) Build deterministic list of allowed pairings (no randomness)
+   *    - within: pairings only inside each group
+   *    - across: all pairs
+   *    - club: only inter-club pairs (skip intra-club)
+   *
+   * We'll build `allPairs` as objects {t1, t2, id}
    *************************************************************************/
   const allPairs = [];
+  // deterministic team order: sort by team id to avoid dependence on insertion order
   const orderedTeams = teams.slice().sort((a,b)=> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
 
   if (rrType === 'within') {
@@ -814,6 +820,7 @@ function generateFixtures(){
       }
     }
   } else if (rrType === 'club') {
+    // Only inter-club pairs
     for (let i=0;i<orderedTeams.length;i++){
       for (let j=i+1;j<orderedTeams.length;j++){
         const a = orderedTeams[i], b = orderedTeams[j];
@@ -824,6 +831,7 @@ function generateFixtures(){
     }
   }
 
+  // sort pairs deterministically by team ids (stable)
   allPairs.sort((x,y) => {
     const aKey = x.t1.id < x.t2.id ? x.t1.id + '|' + x.t2.id : x.t2.id + '|' + x.t1.id;
     const bKey = y.t1.id < y.t2.id ? y.t1.id + '|' + y.t2.id : y.t2.id + '|' + y.t1.id;
@@ -832,55 +840,74 @@ function generateFixtures(){
     return 0;
   });
 
+  // Map to fixture objects (unassigned initially)
   fixtures = allPairs.map((p, idx) => ({ id: p.id, matchNum: idx+1, t1: p.t1, t2: p.t2, court: null, round: null, group: null }));
 
   /*************************************************************************
-   * 2) Deterministic placement pass
+   * 2) Deterministic placement pass: create physical rounds and place matches
+   *
+   * Approach:
+   * - Maintain `unassigned` list
+   * - For roundIndex = 0.. while unassigned.length > 0:
+   *    - For each court in the round, choose the best candidate match:
+   *        * candidate teams must not appear already in this round
+   *        * score candidate by combinedAssignedRounds (fewer => higher priority)
+   *        * break ties deterministically by pair key
+   * - Assign chosen matches to current round/court, update trackers
+   *
+   * This keeps the pairing order deterministic and favors under-played teams.
    *************************************************************************/
   (function deterministicPlacement() {
     const courtsCount = courts;
-    const assignedRoundsCount = {};
-    const lastRoundPlayed = {};
+
+    // trackers
+    const assignedRoundsCount = {}; // teamId -> number of rounds assigned so far
+    const lastRoundPlayed = {}; // teamId -> last round index they played (0-based), undefined if none
     teams.forEach(t => { assignedRoundsCount[t.id] = 0; });
 
-    const unassigned = fixtures.slice();
+    const unassigned = fixtures.slice(); // shallow copy
 
     let roundIndex = 0;
     while (unassigned.length) {
+      // teams already scheduled in this physical round
       const usedThisRound = new Set();
+      // try to fill each court
       let placedInRound = 0;
-
       for (let c = 0; c < courtsCount; c++) {
+        // build candidates (teams not used this round)
         const candidates = unassigned.filter(f => !usedThisRound.has(f.t1.id) && !usedThisRound.has(f.t2.id));
         if (!candidates.length) break;
 
-        // scoring constants (tuned)
+        // score candidates:
+        // lower score = better candidate
+        // score = combinedAssignedRounds * LARGE + backToBackPenalty - combinedGap
+        // constants (deterministic, tuneable)
         const LARGE = 10000;
-        const BACK_TO_BACK_PENALTY = 8000; // stronger avoidance of immediate back-to-back
-        const GAP_WEIGHT = 3; // prefer larger gaps more strongly
+        const BACK_TO_BACK_PENALTY = 1000; // strongly avoid immediate back-to-back
+        const GAP_WEIGHT = 1; // prefer larger gap (subtract it to lower score)
 
-        // deterministic court rotation tie-breaker base: use lowest team id sum and round index to pick court
-        const scored = candidates.map((f, idx) => {
+        const scored = candidates.map(f => {
           const a = f.t1.id, b = f.t2.id;
           const combinedAssigned = (assignedRoundsCount[a] || 0) + (assignedRoundsCount[b] || 0);
           const aLast = (lastRoundPlayed[a] !== undefined) ? lastRoundPlayed[a] : -999;
           const bLast = (lastRoundPlayed[b] !== undefined) ? lastRoundPlayed[b] : -999;
-          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast);
+          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast); // larger is better
           const backPenalty = ((aLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0) + ((bLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0);
+          // deterministic tie-break key:
           const key = (f.t1.id < f.t2.id) ? (f.t1.id + '|' + f.t2.id) : (f.t2.id + '|' + f.t1.id);
-          // Add deterministic court rotation influence: prefer matches where (hash + round) maps closer to current court
-          const teamHash = (String(f.t1.id).split('').reduce((s,ch)=>s+ch.charCodeAt(0),0) + String(f.t2.id).split('').reduce((s,ch)=>s+ch.charCodeAt(0),0));
-          const rotationPref = Math.abs(((teamHash + roundIndex) % courtsCount) - c);
-          const score = combinedAssigned * LARGE + backPenalty - (combinedGap * GAP_WEIGHT) + rotationPref;
-          return { f, score, key, rotationPref };
+          const score = combinedAssigned * LARGE + backPenalty - (combinedGap * GAP_WEIGHT);
+          return { f, score, key };
         });
 
+        // sort by score asc, then by key asc (deterministic)
         scored.sort((x,y) => x.score - y.score || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
-        const chosen = scored[0].f;
 
+        const chosen = scored[0].f;
+        // assign
         chosen.round = roundIndex + 1;
         chosen.court = c + 1;
 
+        // update trackers
         usedThisRound.add(chosen.t1.id);
         usedThisRound.add(chosen.t2.id);
         assignedRoundsCount[chosen.t1.id] = (assignedRoundsCount[chosen.t1.id] || 0) + 1;
@@ -888,11 +915,13 @@ function generateFixtures(){
         lastRoundPlayed[chosen.t1.id] = roundIndex;
         lastRoundPlayed[chosen.t2.id] = roundIndex;
 
+        // remove from unassigned
         const idx = unassigned.indexOf(chosen);
         if (idx >= 0) unassigned.splice(idx,1);
         placedInRound++;
       }
 
+      // if nothing placed (rare), forcibly place earliest unassigned on court 1 to avoid infinite loop
       if (placedInRound === 0 && unassigned.length) {
         const f = unassigned.shift();
         f.round = roundIndex + 1;
@@ -908,42 +937,18 @@ function generateFixtures(){
   })();
 
   /*************************************************************************
-   * 2.5) Left-shift fill: move matches earlier into idle slots deterministically
+   * 3) Deterministic rebalancer (single-pass, conservative)
+   *    - Aim: reduce max back-to-back occurrences and extreme idle spans
+   *    - Approach: evaluate current penalty metric; consider deterministic swaps
+   *      between two fixtures' rounds that reduce the global penalty and keep
+   *      constraints satisfied (no team played twice in same round after swap).
+   *    - Limit iterations to small number to keep runtime predictable.
    *************************************************************************/
-  (function leftShiftFillIdleSlots(){
-    if (!fixtures.length) return;
-    const courtsCount = courts;
-    // compute current max round
-    let maxRound = Math.max(...fixtures.map(f => f.round || 0), 0);
-    // iterate rounds from earliest to latest and try to move any match in later rounds into earliest idle slots
-    // deterministic ordering of candidates ensures reproducibility
-    for (let targetR = 1; targetR <= maxRound; targetR++){
-      for (let targetCourt = 1; targetCourt <= courtsCount; targetCourt++){
-        // if slot already occupied, continue
-        if (fixtures.find(f => f.round === targetR && f.court === targetCourt)) continue;
-        // find the earliest match in rounds > targetR that can be moved here without causing team conflicts
-        const candidates = fixtures.filter(f => f.round > targetR).sort((a,b) => (a.round - b.round) || (a.court - b.court) || (a.matchNum - b.matchNum));
-        for (const cand of candidates) {
-          // check team conflicts in targetR
-          const teamsAtTargetR = new Set();
-          fixtures.forEach(f => { if (f.round === targetR) { teamsAtTargetR.add(f.t1.id); teamsAtTargetR.add(f.t2.id); } });
-          if (teamsAtTargetR.has(cand.t1.id) || teamsAtTargetR.has(cand.t2.id)) continue;
-          // move cand into target slot
-          cand.round = targetR;
-          cand.court = targetCourt;
-          break;
-        }
-      }
-    }
-  })();
-
-  /*************************************************************************
-   * 3) Deterministic rebalancer (increased effort, two passes)
-   *************************************************************************/
-  (function deterministicRebalanceMultiPass() {
+  (function deterministicRebalance() {
     if (!fixtures || fixtures.length < 2) return;
 
     function computeMetrics(fixturesList) {
+      // per team: list of rounds they play in (sorted)
       const teamRounds = {};
       teams.forEach(t => teamRounds[t.id] = []);
       fixturesList.forEach(f => {
@@ -952,6 +957,7 @@ function generateFixtures(){
           teamRounds[f.t2.id].push(f.round);
         }
       });
+      // compute back-to-backs and max idle gap
       let totalBackToBacks = 0;
       let maxIdle = 0;
       Object.keys(teamRounds).forEach(tid => {
@@ -959,6 +965,7 @@ function generateFixtures(){
         for (let i=1;i<arr.length;i++){
           if (arr[i] === arr[i-1] + 1) totalBackToBacks++;
         }
+        // idle = max gap between consecutive rounds (exclude before first and after last)
         for (let i=1;i<arr.length;i++){
           const gap = arr[i] - arr[i-1] - 1;
           if (gap > maxIdle) maxIdle = gap;
@@ -966,165 +973,82 @@ function generateFixtures(){
       });
       return { totalBackToBacks, maxIdle };
     }
-    function penaltyOf(metrics) { return metrics.totalBackToBacks * 1000 + metrics.maxIdle * 10; }
+
+    // penalty function (deterministic): prioritize fewer back-to-backs first, then maxIdle
+    function penaltyOf(metrics) {
+      return metrics.totalBackToBacks * 1000 + metrics.maxIdle * 10;
+    }
 
     let currentMetrics = computeMetrics(fixtures);
     let currentPenalty = penaltyOf(currentMetrics);
 
+    // We will attempt up to MAX_SWAPS deterministic swaps. For reproducibility we
+    // iterate fixture pairs in lexical order of (round,court,matchNum).
     const orderedFixtures = fixtures.slice().sort((a,b)=>{
       if ((a.round||0) !== (b.round||0)) return (a.round||0) - (b.round||0);
       if ((a.court||0) !== (b.court||0)) return (a.court||0) - (b.court||0);
       return a.matchNum - b.matchNum;
     });
 
-    const MAX_SWAPS = 400;
-    const PASSES = 2;
-    for (let pass=0; pass<PASSES; pass++){
-      let swapsDone = 0;
-      for (let i=0; i<orderedFixtures.length && swapsDone < MAX_SWAPS; i++){
-        for (let j=i+1; j<orderedFixtures.length && swapsDone < MAX_SWAPS; j++){
-          const f1 = orderedFixtures[i];
-          const f2 = orderedFixtures[j];
-          if (!f1.round || !f2.round) continue;
+    const MAX_SWAPS = 30;
+    let swapsDone = 0;
 
-          const newF1Round = f2.round;
-          const newF2Round = f1.round;
-          const newF1Court = f2.court;
-          const newF2Court = f1.court;
+    // deterministic nested loops
+    for (let i=0; i<orderedFixtures.length && swapsDone < MAX_SWAPS; i++){
+      for (let j=i+1; j<orderedFixtures.length && swapsDone < MAX_SWAPS; j++){
+        const f1 = orderedFixtures[i];
+        const f2 = orderedFixtures[j];
+        if (!f1.round || !f2.round) continue;
 
-          const roundTeams = {};
-          fixtures.forEach(f => {
-            if (f === f1 || f === f2) return;
-            if (!f.round) return;
-            if (!roundTeams[f.round]) roundTeams[f.round] = new Set();
-            roundTeams[f.round].add(f.t1.id); roundTeams[f.round].add(f.t2.id);
-          });
+        // Consider swapping their rounds (and courts if needed); we will preserve courts as is
+        const newF1Round = f2.round;
+        const newF2Round = f1.round;
+        const newF1Court = f2.court;
+        const newF2Court = f1.court;
 
-          if (!roundTeams[newF1Round]) roundTeams[newF1Round] = new Set();
-          if (roundTeams[newF1Round].has(f1.t1.id) || roundTeams[newF1Round].has(f1.t2.id)) continue;
-          if (!roundTeams[newF2Round]) roundTeams[newF2Round] = new Set();
-          if (roundTeams[newF2Round].has(f2.t1.id) || roundTeams[newF2Round].has(f2.t2.id)) continue;
+        // Constraint check after swap: no team plays twice in same round
+        // Build quick map of (round -> set of team ids) excluding f1 & f2, then add them swapped
+        const roundTeams = {};
+        fixtures.forEach(f => {
+          if (f === f1 || f === f2) return;
+          if (!f.round) return;
+          if (!roundTeams[f.round]) roundTeams[f.round] = new Set();
+          roundTeams[f.round].add(f.t1.id); roundTeams[f.round].add(f.t2.id);
+        });
 
-          const cloned = fixtures.map(ff => {
-            if (ff === f1) return {...ff, round: newF1Round, court: newF1Court};
-            if (ff === f2) return {...ff, round: newF2Round, court: newF2Court};
-            return ff;
-          });
+        // Check f1 placed into newF1Round
+        if (!roundTeams[newF1Round]) roundTeams[newF1Round] = new Set();
+        if (roundTeams[newF1Round].has(f1.t1.id) || roundTeams[newF1Round].has(f1.t2.id)) continue;
+        // Check f2 placed into newF2Round
+        if (!roundTeams[newF2Round]) roundTeams[newF2Round] = new Set();
+        if (roundTeams[newF2Round].has(f2.t1.id) || roundTeams[newF2Round].has(f2.t2.id)) continue;
 
-          const newMetrics = computeMetrics(cloned);
-          const newPenalty = penaltyOf(newMetrics);
+        // Apply swap on a shallow clone of fixtures to evaluate metrics
+        const cloned = fixtures.map(ff => {
+          if (ff === f1) return {...ff, round: newF1Round, court: newF1Court};
+          if (ff === f2) return {...ff, round: newF2Round, court: newF2Court};
+          return ff;
+        });
 
-          if (newPenalty < currentPenalty) {
-            f1.round = newF1Round; f1.court = newF1Court;
-            f2.round = newF2Round; f2.court = newF2Court;
-            currentPenalty = newPenalty;
-            currentMetrics = newMetrics;
-            swapsDone++;
-          }
+        const newMetrics = computeMetrics(cloned);
+        const newPenalty = penaltyOf(newMetrics);
+
+        // Accept swap only if penalty strictly improves (deterministic)
+        if (newPenalty < currentPenalty) {
+          // commit swap in the real fixtures array
+          f1.round = newF1Round; f1.court = newF1Court;
+          f2.round = newF2Round; f2.court = newF2Court;
+          currentPenalty = newPenalty;
+          currentMetrics = newMetrics;
+          swapsDone++;
         }
       }
     }
+    // end rebalancer
   })();
 
   /*************************************************************************
-   * 4) Targeted repair: ensure no team has >=2 consecutive plays if it can be fixed
-   *************************************************************************/
-  (function repairConsecutivePlays(){
-    if (!fixtures.length) return;
-    // build team -> sorted rounds
-    function buildTeamRoundsMap() {
-      const map = {};
-      teams.forEach(t => map[t.id] = []);
-      fixtures.forEach(f => {
-        if (f.round) { map[f.t1.id].push(f.round); map[f.t2.id].push(f.round); }
-      });
-      Object.keys(map).forEach(k => map[k].sort((a,b)=>a-b));
-      return map;
-    }
-    let teamRounds = buildTeamRoundsMap();
-
-    // find teams with >=2 consecutive pairs (i.e., arr[i] == arr[i-1]+1)
-    const offenders = [];
-    Object.keys(teamRounds).forEach(tid => {
-      const arr = teamRounds[tid];
-      for (let i=1;i<arr.length;i++){
-        if (arr[i] === arr[i-1] + 1) { offenders.push({tid, roundEarlier:arr[i-1], roundLater:arr[i]}); }
-      }
-    });
-
-    // deterministic: sort offenders by team id then earliest later round
-    offenders.sort((a,b) => a.tid < b.tid ? -1 : (a.tid > b.tid ? 1 : (a.roundLater - b.roundLater)));
-
-    // For each offender, try to move the later match to nearest available round or swap deterministically
-    const courtsCount = courts;
-    const MAX_ATTEMPTS_PER_OFFENDER = 6;
-    offenders.forEach(off => {
-      const tid = off.tid;
-      const laterRound = off.roundLater;
-      // find the match (fixture) in laterRound involving tid
-      const laterMatch = fixtures.find(f => f.round === laterRound && (f.t1.id === tid || f.t2.id === tid));
-      if (!laterMatch) return;
-      // try moving it to nearest round between (earlierRound+2) .. (laterRound-1) or laterRound+1..laterRound+MAX_ATTEMPTS
-      const earlierRound = off.roundEarlier;
-      let moved = false;
-      // attempt to find idle earlier slot first
-      for (let r = earlierRound+2; r < laterRound && !moved; r++){
-        for (let c = 1; c <= courtsCount; c++){
-          const occupied = fixtures.find(f => f.round === r && f.court === c);
-          if (occupied) continue;
-          // check team conflict: no team of laterMatch should be in round r
-          const conflict = fixtures.some(f => f.round === r && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
-          if (conflict) continue;
-          // move
-          laterMatch.round = r; laterMatch.court = c; moved = true; break;
-        }
-      }
-      if (moved) return;
-      // attempt to swap with a deterministically chosen candidate in a nearby round to reduce consecutive instance
-      for (let delta=1; delta<=MAX_ATTEMPTS_PER_OFFENDER && !moved; delta++){
-        // try earlier side first: move to laterRound-delta
-        const candRound = laterRound - delta;
-        if (candRound > earlierRound + 1) {
-          // pick candidate match to swap with: deterministic lowest matchNum in that round that doesn't introduce conflicts
-          const candidates = fixtures.filter(f => f.round === candRound).sort((a,b)=>a.matchNum - b.matchNum);
-          for (const cand of candidates){
-            // ensure swapping cand <-> laterMatch won't create team duplicates in the target rounds
-            const teamsIfCandMoved = fixtures.filter(ff => ff !== cand && ff !== laterMatch).reduce((s,ff) => {
-              if (ff.round === candRound) s[candRound] = s[candRound]||new Set();
-              if (ff.round === laterMatch.round) s[laterMatch.round] = s[laterMatch.round]||new Set();
-              return s;
-            }, {});
-            // simpler conflict checks: ensure no team collision in candRound if laterMatch moved there, and in laterRound if cand moved there
-            const conflictA = fixtures.some(f => f !== laterMatch && f.round === candRound && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
-            const conflictB = fixtures.some(f => f !== cand && f.round === laterMatch.round && (f.t1.id === cand.t1.id || f.t1.id === cand.t2.id || f.t2.id === cand.t1.id || f.t2.id === cand.t2.id));
-            if (conflictA || conflictB) continue;
-            // perform deterministic swap
-            const tmpRound = cand.round, tmpCourt = cand.court;
-            cand.round = laterMatch.round; cand.court = laterMatch.court;
-            laterMatch.round = tmpRound; laterMatch.court = tmpCourt;
-            moved = true; break;
-          }
-        }
-        // try later side: move to laterRound + delta
-        if (moved) break;
-        const candRound2 = laterRound + delta;
-        // find idle slot in candRound2 first
-        for (let c=1;c<=courtsCount && !moved;c++){
-          const occupied = fixtures.find(f => f.round === candRound2 && f.court === c);
-          if (occupied) continue;
-          const conflict = fixtures.some(f => f.round === candRound2 && (f.t1.id === laterMatch.t1.id || f.t1.id === laterMatch.t2.id || f.t2.id === laterMatch.t1.id || f.t2.id === laterMatch.t2.id));
-          if (conflict) continue;
-          laterMatch.round = candRound2; laterMatch.court = c; moved = true; break;
-        }
-      }
-      // done attempts
-    });
-
-    // final rebuild not required here; it's done by mutate-in-place above
-  })();
-
-  /*************************************************************************
-   * Done: render fixtures
+   * 4) Done: fixtures now have round and court set deterministically.
    *************************************************************************/
   renderFixtures();
   $('fixturesCard').style.display='block';
@@ -1181,6 +1105,7 @@ function renderFixtures(){
     roundDiv.appendChild(inner); grid.appendChild(roundDiv);
   });
 
+  // ensure schedule view is updated too (if visible)
   if ($('scheduleGridContainer').style.display !== 'none') renderScheduleView();
 }
 
@@ -1236,7 +1161,8 @@ function renderScheduleView(){
 
 /* ---------- Rankings ---------- */
 function generateRankings(){
-  rankings = {};
+  // compute stats and populate global `rankings` map so other functions can rely on it
+  rankings = {}; // reset
   const teamStats = {};
   teams.forEach(t=> teamStats[t.id]={t, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0});
 
@@ -1244,16 +1170,30 @@ function generateRankings(){
   let tieFixtureId = null;
 
   fixtures.forEach(f=>{
-    const s1 = Number($(`s1-${f.id}`)?.value||0);
-    const s2 = Number($(`s2-${f.id}`)?.value||0);
+    // read scores robustly
+    const el1 = $(`s1-${f.id}`);
+    const el2 = $(`s2-${f.id}`);
+    const s1 = el1 ? Number(el1.value || 0) : 0;
+    const s2 = el2 ? Number(el2.value || 0) : 0;
+
+    // if both empty/zero, skip
     if (s1 === 0 && s2 === 0) return;
-    if (s1 === s2) { tieDetected = true; tieFixtureId = f.id; return; }
+
+    if (s1 === s2) {
+      tieDetected = true;
+      tieFixtureId = f.id;
+      return; // continue to collect other possible ties but mark detected
+    }
+
+    // ensure both teams are represented in teamStats
     if (!teamStats[f.t1.id]) teamStats[f.t1.id] = {t: f.t1, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
     if (!teamStats[f.t2.id]) teamStats[f.t2.id] = {t: f.t2, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
+
     teamStats[f.t1.id].played++;
     teamStats[f.t2.id].played++;
     teamStats[f.t1.id].pf += s1; teamStats[f.t1.id].pa += s2;
     teamStats[f.t2.id].pf += s2; teamStats[f.t2.id].pa += s1;
+
     if (s1 > s2){
       teamStats[f.t1.id].won++; teamStats[f.t1.id].pts += 3; teamStats[f.t2.id].lost++;
     } else {
@@ -1263,14 +1203,21 @@ function generateRankings(){
 
   if (tieDetected){
     showToast('No ties allowed — please fix tied match scores before generating rankings.','warn');
-    if (tieFixtureId && $(`s1-${tieFixtureId}`)) { $(`s1-${tieFixtureId}`).focus(); }
+    // make a small visual hint if possible
+    if (tieFixtureId && $(`s1-${tieFixtureId}`)) {
+      $(`s1-${tieFixtureId}`).focus();
+    }
     return;
   }
 
+  // compute PD
   Object.values(teamStats).forEach(s => { s.pd = (s.pf || 0) - (s.pa || 0); });
+
+  // store into global rankings map for downstream consumers
   rankings = {};
   Object.values(teamStats).forEach(s => { rankings[s.t.id] = s; });
 
+  // generate sorted table by pts, pd, pf
   const sorted = Object.values(teamStats).sort((a,b)=>{
     if ((b.pts||0) !== (a.pts||0)) return (b.pts||0) - (a.pts||0);
     if ((b.pd||0) !== (a.pd||0)) return (b.pd||0) - (a.pd||0);
@@ -1294,6 +1241,7 @@ function generateRankings(){
 /* ---------- Knockouts ---------- */
 function proceedToKnockouts(){
   const qualPer = Number($('qualPerGroup').value);
+  // If user explicitly chose None - Only RR (value 0), we stop here and do not proceed to Knockouts.
   if (qualPer === 0) {
     showToast('No qualifiers selected — tournament will stop at Round-Robin stage.','info');
     return;
