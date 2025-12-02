@@ -782,67 +782,279 @@ function showGroupSummary(){
   $('summaryInner').innerHTML = html; $('summaryCard').style.display='block'; $('fixturesCard').style.display='none'; $('rankingsCard').style.display='none'; $('knockoutsCard').style.display='none'; updateBanner('Summary');
 }
 
-/* ---------- Fixtures generation (balanced allocator only) ---------- */
+/* ---------- Fixtures generation (deterministic Berger-like + placement + rebalancer) ---------- */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
   fixtures = [];
   const rrType = $('rrType').value;
   const courts = clampInt($('numCourts').value,1);
 
-  if (rrType==='within'){
-    const groups={}; teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
-    let matchNum=1;
-    Object.keys(groups).forEach(g=>{ const groupTeams = groups[g]; for(let i=0;i<groupTeams.length;i++){ for(let j=i+1;j<groupTeams.length;j++){ const t1=groupTeams[i], t2=groupTeams[j]; fixtures.push({id:generateId('m'), matchNum:matchNum++, group:Number(g), t1, t2, court:null, round:null}); } } });
-  } else if (rrType==='across'){
-    for(let i=0;i<teams.length;i++){ for(let j=i+1;j<teams.length;j++){ fixtures.push({id:generateId('m'), matchNum:fixtures.length+1, group:null, t1:teams[i], t2:teams[j], court:null, round:null}); } }
-  } else if (rrType==='club'){
-    function clubKey(t){ return (t.club || '').trim() || '__UNASSIGNED__'; }
-    let matchNum=1;
-    for(let i=0;i<teams.length;i++){ for(let j=i+1;j<teams.length;j++){ const a=teams[i], b=teams[j]; const ca=clubKey(a), cb=clubKey(b); if (ca !== cb) fixtures.push({id:generateId('m'), matchNum:matchNum++, group:null, t1:a, t2:b, court:null, round:null}); } }
-  }
+  /*************************************************************************
+   * 1) Build deterministic list of allowed pairings (no randomness)
+   *    - within: pairings only inside each group
+   *    - across: all pairs
+   *    - club: only inter-club pairs (skip intra-club)
+   *
+   * We'll build `allPairs` as objects {t1, t2, id}
+   *************************************************************************/
+  const allPairs = [];
+  // deterministic team order: sort by team id to avoid dependence on insertion order
+  const orderedTeams = teams.slice().sort((a,b)=> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
 
-  // Balanced allocator (always used now)
-  const rounds = []; // array of arrays length=courts
-  const lastPlayedRound = {}; // teamId -> last round index
-  const courtLoads = Array.from({length:courts}, ()=>0);
-
-  fixtures.forEach(f=>{
-    let best = null;
-    for (let r=0;r<rounds.length;r++){
-      const teamsInRound = new Set();
-      for (let c=0;c<courts;c++){ const mf = rounds[r][c]; if (mf){ teamsInRound.add(mf.t1.id); teamsInRound.add(mf.t2.id); } }
-      if (teamsInRound.has(f.t1.id) || teamsInRound.has(f.t2.id)) continue;
-      for (let c=0;c<courts;c++){
-        if (rounds[r][c]) continue;
-        const backPenalty = ((lastPlayedRound[f.t1.id] === r-1) ? 1 : 0) + ((lastPlayedRound[f.t2.id] === r-1) ? 1 : 0);
-        const courtLoadPenalty = courtLoads[c];
-        const penalty = backPenalty * 10 + courtLoadPenalty;
-        if (!best || penalty < best.penalty) best = { r, c, penalty, backPenalty, courtLoadPenalty };
+  if (rrType === 'within') {
+    const groups = {};
+    orderedTeams.forEach(t => { const g = t.group || 1; if (!groups[g]) groups[g]=[]; groups[g].push(t); });
+    Object.keys(groups).sort().forEach(g => {
+      const list = groups[g];
+      for (let i=0;i<list.length;i++){
+        for (let j=i+1;j<list.length;j++){
+          const t1=list[i], t2=list[j];
+          allPairs.push({ id: generateId('p'), t1, t2 });
+        }
+      }
+    });
+  } else if (rrType === 'across') {
+    for (let i=0;i<orderedTeams.length;i++){
+      for (let j=i+1;j<orderedTeams.length;j++){
+        allPairs.push({ id: generateId('p'), t1: orderedTeams[i], t2: orderedTeams[j] });
       }
     }
-    if (best){
-      rounds[best.r][best.c] = f;
-      f.round = best.r + 1;
-      f.court = best.c + 1;
-      lastPlayedRound[f.t1.id] = best.r;
-      lastPlayedRound[f.t2.id] = best.r;
-      courtLoads[best.c] += 1;
-    } else {
-      const newRoundIndex = rounds.length;
-      const newRound = Array.from({length:courts}, ()=>null);
-      let minCourt = 0;
-      for (let c=1;c<courts;c++){ if (courtLoads[c] < courtLoads[minCourt]) minCourt = c; }
-      newRound[minCourt] = f;
-      rounds.push(newRound);
-      f.round = newRoundIndex + 1;
-      f.court = minCourt + 1;
-      lastPlayedRound[f.t1.id] = newRoundIndex;
-      lastPlayedRound[f.t2.id] = newRoundIndex;
-      courtLoads[minCourt] += 1;
+  } else if (rrType === 'club') {
+    // Only inter-club pairs
+    for (let i=0;i<orderedTeams.length;i++){
+      for (let j=i+1;j<orderedTeams.length;j++){
+        const a = orderedTeams[i], b = orderedTeams[j];
+        const ca = (a.club || '').trim() || '__UNASSIGNED__';
+        const cb = (b.club || '').trim() || '__UNASSIGNED__';
+        if (ca !== cb) allPairs.push({ id: generateId('p'), t1: a, t2: b });
+      }
     }
+  }
+
+  // sort pairs deterministically by team ids (stable)
+  allPairs.sort((x,y) => {
+    const aKey = x.t1.id < x.t2.id ? x.t1.id + '|' + x.t2.id : x.t2.id + '|' + x.t1.id;
+    const bKey = y.t1.id < y.t2.id ? y.t1.id + '|' + y.t2.id : y.t2.id + '|' + y.t1.id;
+    if (aKey < bKey) return -1;
+    if (aKey > bKey) return 1;
+    return 0;
   });
 
-  renderFixtures(); $('fixturesCard').style.display='block'; $('summaryCard').style.display='none'; updateBanner('Fixtures'); scheduleAutoSave();
+  // Map to fixture objects (unassigned initially)
+  fixtures = allPairs.map((p, idx) => ({ id: p.id, matchNum: idx+1, t1: p.t1, t2: p.t2, court: null, round: null, group: null }));
+
+  /*************************************************************************
+   * 2) Deterministic placement pass: create physical rounds and place matches
+   *
+   * Approach:
+   * - Maintain `unassigned` list
+   * - For roundIndex = 0.. while unassigned.length > 0:
+   *    - For each court in the round, choose the best candidate match:
+   *        * candidate teams must not appear already in this round
+   *        * score candidate by combinedAssignedRounds (fewer => higher priority)
+   *        * break ties deterministically by pair key
+   * - Assign chosen matches to current round/court, update trackers
+   *
+   * This keeps the pairing order deterministic and favors under-played teams.
+   *************************************************************************/
+  (function deterministicPlacement() {
+    const courtsCount = courts;
+
+    // trackers
+    const assignedRoundsCount = {}; // teamId -> number of rounds assigned so far
+    const lastRoundPlayed = {}; // teamId -> last round index they played (0-based), undefined if none
+    teams.forEach(t => { assignedRoundsCount[t.id] = 0; });
+
+    const unassigned = fixtures.slice(); // shallow copy
+
+    let roundIndex = 0;
+    while (unassigned.length) {
+      // teams already scheduled in this physical round
+      const usedThisRound = new Set();
+      // try to fill each court
+      let placedInRound = 0;
+      for (let c = 0; c < courtsCount; c++) {
+        // build candidates (teams not used this round)
+        const candidates = unassigned.filter(f => !usedThisRound.has(f.t1.id) && !usedThisRound.has(f.t2.id));
+        if (!candidates.length) break;
+
+        // score candidates:
+        // lower score = better candidate
+        // score = combinedAssignedRounds * LARGE + backToBackPenalty - combinedGap
+        // constants (deterministic, tuneable)
+        const LARGE = 10000;
+        const BACK_TO_BACK_PENALTY = 1000; // strongly avoid immediate back-to-back
+        const GAP_WEIGHT = 1; // prefer larger gap (subtract it to lower score)
+
+        const scored = candidates.map(f => {
+          const a = f.t1.id, b = f.t2.id;
+          const combinedAssigned = (assignedRoundsCount[a] || 0) + (assignedRoundsCount[b] || 0);
+          const aLast = (lastRoundPlayed[a] !== undefined) ? lastRoundPlayed[a] : -999;
+          const bLast = (lastRoundPlayed[b] !== undefined) ? lastRoundPlayed[b] : -999;
+          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast); // larger is better
+          const backPenalty = ((aLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0) + ((bLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0);
+          // deterministic tie-break key:
+          const key = (f.t1.id < f.t2.id) ? (f.t1.id + '|' + f.t2.id) : (f.t2.id + '|' + f.t1.id);
+          const score = combinedAssigned * LARGE + backPenalty - (combinedGap * GAP_WEIGHT);
+          return { f, score, key };
+        });
+
+        // sort by score asc, then by key asc (deterministic)
+        scored.sort((x,y) => x.score - y.score || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
+
+        const chosen = scored[0].f;
+        // assign
+        chosen.round = roundIndex + 1;
+        chosen.court = c + 1;
+
+        // update trackers
+        usedThisRound.add(chosen.t1.id);
+        usedThisRound.add(chosen.t2.id);
+        assignedRoundsCount[chosen.t1.id] = (assignedRoundsCount[chosen.t1.id] || 0) + 1;
+        assignedRoundsCount[chosen.t2.id] = (assignedRoundsCount[chosen.t2.id] || 0) + 1;
+        lastRoundPlayed[chosen.t1.id] = roundIndex;
+        lastRoundPlayed[chosen.t2.id] = roundIndex;
+
+        // remove from unassigned
+        const idx = unassigned.indexOf(chosen);
+        if (idx >= 0) unassigned.splice(idx,1);
+        placedInRound++;
+      }
+
+      // if nothing placed (rare), forcibly place earliest unassigned on court 1 to avoid infinite loop
+      if (placedInRound === 0 && unassigned.length) {
+        const f = unassigned.shift();
+        f.round = roundIndex + 1;
+        f.court = 1;
+        assignedRoundsCount[f.t1.id] = (assignedRoundsCount[f.t1.id] || 0) + 1;
+        assignedRoundsCount[f.t2.id] = (assignedRoundsCount[f.t2.id] || 0) + 1;
+        lastRoundPlayed[f.t1.id] = roundIndex;
+        lastRoundPlayed[f.t2.id] = roundIndex;
+      }
+
+      roundIndex++;
+    }
+  })();
+
+  /*************************************************************************
+   * 3) Deterministic rebalancer (single-pass, conservative)
+   *    - Aim: reduce max back-to-back occurrences and extreme idle spans
+   *    - Approach: evaluate current penalty metric; consider deterministic swaps
+   *      between two fixtures' rounds that reduce the global penalty and keep
+   *      constraints satisfied (no team played twice in same round after swap).
+   *    - Limit iterations to small number to keep runtime predictable.
+   *************************************************************************/
+  (function deterministicRebalance() {
+    if (!fixtures || fixtures.length < 2) return;
+
+    function computeMetrics(fixturesList) {
+      // per team: list of rounds they play in (sorted)
+      const teamRounds = {};
+      teams.forEach(t => teamRounds[t.id] = []);
+      fixturesList.forEach(f => {
+        if (f.round) {
+          teamRounds[f.t1.id].push(f.round);
+          teamRounds[f.t2.id].push(f.round);
+        }
+      });
+      // compute back-to-backs and max idle gap
+      let totalBackToBacks = 0;
+      let maxIdle = 0;
+      Object.keys(teamRounds).forEach(tid => {
+        const arr = teamRounds[tid].slice().sort((a,b)=>a-b);
+        for (let i=1;i<arr.length;i++){
+          if (arr[i] === arr[i-1] + 1) totalBackToBacks++;
+        }
+        // idle = max gap between consecutive rounds (exclude before first and after last)
+        for (let i=1;i<arr.length;i++){
+          const gap = arr[i] - arr[i-1] - 1;
+          if (gap > maxIdle) maxIdle = gap;
+        }
+      });
+      return { totalBackToBacks, maxIdle };
+    }
+
+    // penalty function (deterministic): prioritize fewer back-to-backs first, then maxIdle
+    function penaltyOf(metrics) {
+      return metrics.totalBackToBacks * 1000 + metrics.maxIdle * 10;
+    }
+
+    let currentMetrics = computeMetrics(fixtures);
+    let currentPenalty = penaltyOf(currentMetrics);
+
+    // We will attempt up to MAX_SWAPS deterministic swaps. For reproducibility we
+    // iterate fixture pairs in lexical order of (round,court,matchNum).
+    const orderedFixtures = fixtures.slice().sort((a,b)=>{
+      if ((a.round||0) !== (b.round||0)) return (a.round||0) - (b.round||0);
+      if ((a.court||0) !== (b.court||0)) return (a.court||0) - (b.court||0);
+      return a.matchNum - b.matchNum;
+    });
+
+    const MAX_SWAPS = 30;
+    let swapsDone = 0;
+
+    // deterministic nested loops
+    for (let i=0; i<orderedFixtures.length && swapsDone < MAX_SWAPS; i++){
+      for (let j=i+1; j<orderedFixtures.length && swapsDone < MAX_SWAPS; j++){
+        const f1 = orderedFixtures[i];
+        const f2 = orderedFixtures[j];
+        if (!f1.round || !f2.round) continue;
+
+        // Consider swapping their rounds (and courts if needed); we will preserve courts as is
+        const newF1Round = f2.round;
+        const newF2Round = f1.round;
+        const newF1Court = f2.court;
+        const newF2Court = f1.court;
+
+        // Constraint check after swap: no team plays twice in same round
+        // Build quick map of (round -> set of team ids) excluding f1 & f2, then add them swapped
+        const roundTeams = {};
+        fixtures.forEach(f => {
+          if (f === f1 || f === f2) return;
+          if (!f.round) return;
+          if (!roundTeams[f.round]) roundTeams[f.round] = new Set();
+          roundTeams[f.round].add(f.t1.id); roundTeams[f.round].add(f.t2.id);
+        });
+
+        // Check f1 placed into newF1Round
+        if (!roundTeams[newF1Round]) roundTeams[newF1Round] = new Set();
+        if (roundTeams[newF1Round].has(f1.t1.id) || roundTeams[newF1Round].has(f1.t2.id)) continue;
+        // Check f2 placed into newF2Round
+        if (!roundTeams[newF2Round]) roundTeams[newF2Round] = new Set();
+        if (roundTeams[newF2Round].has(f2.t1.id) || roundTeams[newF2Round].has(f2.t2.id)) continue;
+
+        // Apply swap on a shallow clone of fixtures to evaluate metrics
+        const cloned = fixtures.map(ff => {
+          if (ff === f1) return {...ff, round: newF1Round, court: newF1Court};
+          if (ff === f2) return {...ff, round: newF2Round, court: newF2Court};
+          return ff;
+        });
+
+        const newMetrics = computeMetrics(cloned);
+        const newPenalty = penaltyOf(newMetrics);
+
+        // Accept swap only if penalty strictly improves (deterministic)
+        if (newPenalty < currentPenalty) {
+          // commit swap in the real fixtures array
+          f1.round = newF1Round; f1.court = newF1Court;
+          f2.round = newF2Round; f2.court = newF2Court;
+          currentPenalty = newPenalty;
+          currentMetrics = newMetrics;
+          swapsDone++;
+        }
+      }
+    }
+    // end rebalancer
+  })();
+
+  /*************************************************************************
+   * 4) Done: fixtures now have round and court set deterministically.
+   *************************************************************************/
+  renderFixtures();
+  $('fixturesCard').style.display='block';
+  $('summaryCard').style.display='none';
+  updateBanner('Fixtures');
+  scheduleAutoSave();
 }
 
 /* ---------- Render fixtures (enter-scores view) ---------- */
@@ -948,7 +1160,6 @@ function renderScheduleView(){
 }
 
 /* ---------- Rankings ---------- */
-// REPLACED: improved tie handling, ensure `rankings` global is populated
 function generateRankings(){
   // compute stats and populate global `rankings` map so other functions can rely on it
   rankings = {}; // reset
@@ -1055,37 +1266,11 @@ function proceedToKnockouts(){
 function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML=''; const q = knockout.qualifiers || []; if (knockout.stages===8){ const matches=[{t1:q[0],t2:q[7]},{t1:q[3],t2:q[4]},{t1:q[1],t2:q[6]},{t1:q[2],t2:q[5]}]; inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>'; inner.innerHTML += renderKOBracket(matches,'qf'); knockout.qf = matches; } if (knockout.stages>=4){ inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>'; const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]]; const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]]; inner.innerHTML += renderKOBracket([sf1,sf2],'sf'); } inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>'; inner.innerHTML += renderKOBracket([null],'final'); if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third'); }
 function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
-/* ---------- Exports ---------- */
+/* ---------- Exports & DUPR helpers (unchanged) ---------- */
 function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
 function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
-
-/* ------------------ Small smoke-check patches ------------------
-   These three functions fix the missing handlers and harden the DUPR template branch.
------------------------------------------------------------------*/
-function updateQualifierDefaults(){
-  // Called when numGroups input changes.
-  try {
-    const ng = clampInt($('numGroups').value, 1);
-    const qualSel = $('qualPerGroup');
-    if (!qualSel) return;
-    const cur = Number(qualSel.value) || 0;
-    if (cur > ng) {
-      // if current selection numeric and larger than group size, reduce it conservatively
-      if (cur > 0) qualSel.value = String(Math.max(1, Math.floor(ng / 2)) || 1);
-    }
-  } catch(e){
-    console.warn('updateQualifierDefaults error', e);
-  }
-}
-
-function onQualPerGroupManual(){
-  // No-op placeholder so onchange won't throw; can be extended later.
-  return;
-}
-
-/* ---------- DUPR helpers & export (uses saved snapshot if present) ---------- */
 
 function csvEscape(value) {
   if (value === null || value === undefined || value === '') return '';
@@ -1095,7 +1280,6 @@ function csvEscape(value) {
   }
   return s;
 }
-
 function formatYMD(d){
   if(!d) d = new Date();
   const date = (d instanceof Date) ? d : new Date(d);
@@ -1105,17 +1289,13 @@ function formatYMD(d){
   const dd = String(date.getDate()).padStart(2,'0');
   return `${yyyy}-${mm}-${dd}`;
 }
-
-// Use saved tournament snapshot gameType if present, otherwise use UI control
 function getTournamentGameType() {
   const active = getActiveTournament();
   if (active && active.snapshot && active.snapshot.settings && active.snapshot.settings.gameType) {
-    return active.snapshot.settings.gameType; // 'singles' or 'doubles'
+    return active.snapshot.settings.gameType;
   }
-  // fallback to current control
   return ($('gameType') && $('gameType').value) ? $('gameType').value : 'doubles';
 }
-
 function duprExportTemplateCsvLines(){
   const DUPR_HEADERS = [
     "<leave empty>", "<leave empty>", "<leave empty>",
@@ -1131,11 +1311,8 @@ function duprExportTemplateCsvLines(){
     "teamAGame4","teamBGame4",
     "teamAGame5","teamBGame5"
   ];
-
-  // matchType letter based on saved snapshot (preferred) then UI control ('S' or 'D')
   const gtype = getTournamentGameType();
   const mt = (gtype === 'singles') ? 'S' : 'D';
-
   const sampleRow = [
     '', '', '', mt, 'Example Event', formatYMD(new Date()),
     'Player A1', '', '', 'Player A2', '', '', 'Player B1', '', '', 'Player B2', '', '', '',
@@ -1143,10 +1320,7 @@ function duprExportTemplateCsvLines(){
   ];
   return [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
 }
-
-// REPLACED: simplified and robust row builder (uses saved snapshot gameType if present)
 function buildDupRRowFromFixture(f){
-  // matchType should be single letter: 'S' or 'D' — use saved snapshot if present
   const gtype = getTournamentGameType();
   const matchType = (gtype === 'singles') ? 'S' : 'D';
   const eventName = ($('tourneyName') && $('tourneyName').value.trim()) || (getActiveTournament() ? getActiveTournament().name : '') || '';
@@ -1176,7 +1350,6 @@ function buildDupRRowFromFixture(f){
 
   const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value.trim() : '';
   const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value.trim() : '';
-  // simplest: use whatever is present or empty string
   const games = [ s1 || '', s2 || '' ];
   while (games.length < 10) games.push('');
 
@@ -1192,7 +1365,6 @@ function buildDupRRowFromFixture(f){
   row.push(...games.slice(0,10));
   return row;
 }
-
 function exportDupRCSV(){
   const DUPR_HEADERS = [
     "<leave empty>", "<leave empty>", "<leave empty>",
@@ -1252,7 +1424,6 @@ function exportDupRCSV(){
 }
 
 /* ---------- Helpers used across UI ---------- */
-// REPLACED: preserve inner #stageText instead of wiping banner children
 function updateBanner(stage){ const stageTextEl = document.getElementById('stageText'); if (stageTextEl) { stageTextEl.textContent = `Current Stage: ${stage}`; return; } const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
 
 function updateQualVisual(){
