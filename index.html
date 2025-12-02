@@ -948,40 +948,83 @@ function renderScheduleView(){
 }
 
 /* ---------- Rankings ---------- */
+// REPLACED: improved tie handling, ensure `rankings` global is populated
 function generateRankings(){
-  rankings = {};
+  // compute stats and populate global `rankings` map so other functions can rely on it
+  rankings = {}; // reset
   const teamStats = {};
   teams.forEach(t=> teamStats[t.id]={t, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0});
 
+  let tieDetected = false;
+  let tieFixtureId = null;
+
   fixtures.forEach(f=>{
-    const s1 = Number($(`s1-${f.id}`)?.value||0);
-    const s2 = Number($(`s2-${f.id}`)?.value||0);
-    if (s1===0 && s2===0) return;
-    if (s1===s2) { showToast('No ties allowed!','warn'); return; }
+    // read scores robustly
+    const el1 = $(`s1-${f.id}`);
+    const el2 = $(`s2-${f.id}`);
+    const s1 = el1 ? Number(el1.value || 0) : 0;
+    const s2 = el2 ? Number(el2.value || 0) : 0;
+
+    // if both empty/zero, skip
+    if (s1 === 0 && s2 === 0) return;
+
+    if (s1 === s2) {
+      tieDetected = true;
+      tieFixtureId = f.id;
+      return; // continue to collect other possible ties but mark detected
+    }
+
+    // ensure both teams are represented in teamStats
+    if (!teamStats[f.t1.id]) teamStats[f.t1.id] = {t: f.t1, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
+    if (!teamStats[f.t2.id]) teamStats[f.t2.id] = {t: f.t2, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0};
+
     teamStats[f.t1.id].played++;
     teamStats[f.t2.id].played++;
     teamStats[f.t1.id].pf += s1; teamStats[f.t1.id].pa += s2;
     teamStats[f.t2.id].pf += s2; teamStats[f.t2.id].pa += s1;
-    if (s1>s2){
+
+    if (s1 > s2){
       teamStats[f.t1.id].won++; teamStats[f.t1.id].pts += 3; teamStats[f.t2.id].lost++;
     } else {
       teamStats[f.t2.id].won++; teamStats[f.t2.id].pts += 3; teamStats[f.t1.id].lost++;
     }
   });
 
-  Object.values(teamStats).forEach(s=> s.pd = s.pf - s.pa );
+  if (tieDetected){
+    showToast('No ties allowed — please fix tied match scores before generating rankings.','warn');
+    // make a small visual hint if possible
+    if (tieFixtureId && $(`s1-${tieFixtureId}`)) {
+      $(`s1-${tieFixtureId}`).focus();
+    }
+    return;
+  }
 
+  // compute PD
+  Object.values(teamStats).forEach(s => { s.pd = (s.pf || 0) - (s.pa || 0); });
+
+  // store into global rankings map for downstream consumers
+  rankings = {};
+  Object.values(teamStats).forEach(s => { rankings[s.t.id] = s; });
+
+  // generate sorted table by pts, pd, pf
   const sorted = Object.values(teamStats).sort((a,b)=>{
-    if (b.pts !== a.pts) return b.pts - a.pts;
-    if (b.pd !== a.pd) return b.pd - a.pd;
-    if (b.pf !== a.pf) return b.pf - a.pf;
+    if ((b.pts||0) !== (a.pts||0)) return (b.pts||0) - (a.pts||0);
+    if ((b.pd||0) !== (a.pd||0)) return (b.pd||0) - (a.pd||0);
+    if ((b.pf||0) !== (a.pf||0)) return (b.pf||0) - (a.pf||0);
     return 0;
   });
 
   let html = '<table class="white-table"><thead><tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr></thead><tbody>';
-  sorted.forEach((s,i)=>{ const players = s.t.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / '); html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td><td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`; });
+  sorted.forEach((s,i)=>{
+    const players = (s.t.players||[]).map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
+    html += `<tr><td>${i+1}</td><td><strong>${s.t.name}</strong><br><small style="color:#666">${players}</small></td><td>${s.played}</td><td>${s.won}</td><td>${s.lost}</td><td>${s.pf}</td><td>${s.pa}</td><td>${s.pd}</td><td><strong>${s.pts}</strong></td></tr>`;
+  });
   html += '</tbody></table>';
-  $('rankingsInner').innerHTML = html; $('rankingsCard').style.display='block'; $('fixturesCard').style.display='none'; updateBanner('Rankings');
+
+  $('rankingsInner').innerHTML = html;
+  $('rankingsCard').style.display = 'block';
+  $('fixturesCard').style.display = 'none';
+  updateBanner('Rankings');
 }
 
 /* ---------- Knockouts ---------- */
@@ -1029,7 +1072,7 @@ function updateQualifierDefaults(){
     if (!qualSel) return;
     const cur = Number(qualSel.value) || 0;
     if (cur > ng) {
-      // if current selection numeric and larger than group size, reduce it
+      // if current selection numeric and larger than group size, reduce it conservatively
       if (cur > 0) qualSel.value = String(Math.max(1, Math.floor(ng / 2)) || 1);
     }
   } catch(e){
@@ -1101,6 +1144,7 @@ function duprExportTemplateCsvLines(){
   return [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
 }
 
+// REPLACED: simplified and robust row builder (uses saved snapshot gameType if present)
 function buildDupRRowFromFixture(f){
   // matchType should be single letter: 'S' or 'D' — use saved snapshot if present
   const gtype = getTournamentGameType();
@@ -1132,10 +1176,8 @@ function buildDupRRowFromFixture(f){
 
   const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value.trim() : '';
   const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value.trim() : '';
-  const games = [
-    (s1 || s2) ? s1 : '',
-    (s1 || s2) ? s2 : ''
-  ];
+  // simplest: use whatever is present or empty string
+  const games = [ s1 || '', s2 || '' ];
   while (games.length < 10) games.push('');
 
   const row = [
@@ -1210,9 +1252,9 @@ function exportDupRCSV(){
 }
 
 /* ---------- Helpers used across UI ---------- */
-function updateBanner(stage){ const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
+// REPLACED: preserve inner #stageText instead of wiping banner children
+function updateBanner(stage){ const stageTextEl = document.getElementById('stageText'); if (stageTextEl) { stageTextEl.textContent = `Current Stage: ${stage}`; return; } const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
 
-/* ---------- Qualifier visual update ---------- */
 function updateQualVisual(){
   try {
     const container = $('qualContainer');
