@@ -320,9 +320,9 @@
   }
   .court-label{ font-size:13px;font-weight:700;color:var(--muted); margin-bottom:6px; }
 
-  /* disabled appearance for No. of Groups when not applicable */
-  .disabled-hint{ font-size:12px; color:var(--muted); margin-top:6px; font-style:italic; opacity:0.9; }
+  /* disabled appearance for No. of Groups and QF checkbox when not applicable */
   .disabled-input{ opacity:0.55; pointer-events:none; }
+  .disabled-checkbox{ opacity:0.55; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -343,27 +343,14 @@
                 <option value="singles">Singles</option>
               </select>
             </div>
-            <div class="form-item">
-              <label id="numLabel">No. of Teams</label>
-              <input id="numTeams" type="number" min="2" value="8" oninput="updateQualifierDefaults()">
-            </div>
+
             <div class="form-item">
               <label>No. of Courts</label>
               <input id="numCourts" type="number" min="1" value="2">
             </div>
-            <div class="form-item" style="display:none;">
-              <!-- removed Court Allocation dropdown: Sequential (Balanced) is the only option now -->
-              <label>Court Allocation</label>
-              <select id="courtAlloc" disabled>
-                <option value="balanced" selected>Sequential (Balanced)</option>
-              </select>
-            </div>
-            <div class="form-item" id="groupsFormItem">
-              <label id="groupsLabel">No. of Groups</label>
-              <input id="numGroups" type="number" min="1" value="2" oninput="updateQualifierDefaults()">
-              <div id="groupsHint" class="disabled-hint" style="display:none;">Groups apply only to ‘Within Groups’ mode.</div>
-            </div>
+
             <div class="form-item">
+              <!-- RR dropdown placed before No. of Groups as requested -->
               <label>Round-Robin Type</label>
               <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
@@ -371,8 +358,19 @@
                 <option value="club">Across Clubs</option>
               </select>
             </div>
+
+            <div class="form-item" id="groupsFormItem">
+              <label id="groupsLabel">No. of Groups</label>
+              <input id="numGroups" type="number" min="1" value="2" oninput="updateQualifierDefaults()">
+            </div>
+
             <div class="form-item">
-              <label>Qualifiers/group</label>
+              <label id="numLabel">No. of Teams</label>
+              <input id="numTeams" type="number" min="2" value="8" oninput="onParticipantCountChange()">
+            </div>
+
+            <div class="form-item">
+              <label id="qualLabel">Qualifiers/group</label>
               <select id="qualPerGroup" onchange="onQualPerGroupManual()">
                 <option value="1">1</option>
                 <option value="2" selected>2</option>
@@ -383,7 +381,7 @@
 
             <div class="form-item checkbox-row">
               <input id="enableQF" type="checkbox">
-              <label for="enableQF" style="margin:0;cursor:pointer;">Enable Quarterfinals</label>
+              <label for="enableQF" style="margin:0;cursor:pointer;" id="enableQFLabel">Enable Quarterfinals</label>
             </div>
             <div class="form-item checkbox-row">
               <input id="enableDUPR" type="checkbox">
@@ -635,36 +633,57 @@ function renderTournamentInfo(){ const info = $('tournamentInfo'); const active 
 function renameActiveTournament(){ const id = getActiveTournamentId(); if (!id) return showToast('No active tournament','warn'); const newName = $('tourneyName').value.trim(); if (!newName) return showToast('Enter a name','warn'); const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return; arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success'); }
 
 /* ---------- UI helpers ---------- */
-function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; }
+function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; updateQFAvailability(); }
 
 function updateGroupFieldState(){
   const rr = $('rrType').value;
   const groupsInput = $('numGroups');
   const groupsFormItem = document.getElementById('groupsFormItem');
-  const groupsHint = $('groupsHint');
-  const groupsLabel = $('groupsLabel');
-  const hintText = "Groups apply only to 'Within Groups' mode.";
   if (rr === 'within'){
-    // enabled
     groupsInput.disabled = false;
     groupsFormItem.classList.remove('disabled-input');
-    groupsHint.style.display = 'none';
-    groupsInput.removeAttribute('title');
-    groupsLabel.removeAttribute('title');
   } else {
-    // disabled + greyed + helper text visible + tooltip
     groupsInput.disabled = true;
     groupsFormItem.classList.add('disabled-input');
-    groupsHint.style.display = 'block';
-    groupsInput.setAttribute('title', hintText);
-    groupsLabel.setAttribute('title', hintText);
   }
+}
+
+function updateQualLabel(){
+  const rr = $('rrType').value;
+  const qLabel = $('qualLabel');
+  if (rr === 'within') qLabel.textContent = 'Qualifiers/group';
+  else if (rr === 'club') qLabel.textContent = 'Qualifiers/club';
+  else qLabel.textContent = '# of Qualifiers';
 }
 
 function onRRTypeChange(){
   const rr = $('rrType').value;
   $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
   updateGroupFieldState();
+  updateQualLabel();
+}
+
+/* ---------- QF checkbox availability ---------- */
+function updateQFAvailability(){
+  const type = $('gameType').value;
+  const count = clampInt($('numTeams').value, 0);
+  const qfCheckbox = $('enableQF');
+  const qfLabel = $('enableQFLabel');
+  // For doubles, teams count is numTeams; for singles we treat same field as number of players
+  const eligible = count >= 8;
+  if (!eligible){
+    qfCheckbox.checked = false;
+    qfCheckbox.disabled = true;
+    qfLabel.classList.add('disabled-checkbox');
+  } else {
+    qfCheckbox.disabled = false;
+    qfLabel.classList.remove('disabled-checkbox');
+  }
+}
+
+/* called when number of teams/players changed */
+function onParticipantCountChange(){
+  updateQFAvailability();
 }
 
 /* ---------- Club Management ---------- */
@@ -885,16 +904,13 @@ function renderScheduleView(){
   const container = $('scheduleGrid');
   container.innerHTML = '';
   if (!fixtures || !fixtures.length) { container.innerHTML = '<div style="color:var(--muted)">No fixtures yet</div>'; return; }
-  // compute max round
   const maxRound = Math.max(...fixtures.map(f => f.round || 1));
   const courts = clampInt($('numCourts').value,1);
 
-  // for each round, build per-court list
   for (let r = 1; r <= maxRound; r++){
     const col = document.createElement('div'); col.className = 'schedule-column';
     const header = document.createElement('div'); header.className = 'schedule-col-header'; header.textContent = `Round ${r}`;
     col.appendChild(header);
-    // for each court, list match (if any) for this round
     for (let c = 1; c <= courts; c++){
       const courtBlock = document.createElement('div'); courtBlock.className = 'court-block';
       const courtLabel = document.createElement('div'); courtLabel.className = 'court-label'; courtLabel.textContent = `Court ${c}`;
@@ -969,7 +985,7 @@ function printSchedule(){ window.print(); }
 function updateBanner(stage){ const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
 
 /* ---------- Init ---------- */
-renderLoadControl(); renderTournamentInfo(); updateGroupFieldState();
+renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability();
 
 </script>
 </body>
