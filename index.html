@@ -478,10 +478,9 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
 <script>
-/* =============== App JS =============== */
-/* Baseline logic preserved; changes: renderFixtures now lays out columns = no. of courts on wide screens;
-   exportSummaryPDF implemented as a print-ready popup (Save as PDF via browser Print). */
+/* ==================== FULL JAVASCRIPT (patched) ==================== */
 
+/* ---------- App State ---------- */
 let teams = [];
 let fixtures = [];
 let rankings = {};
@@ -490,13 +489,16 @@ let clubs = [];
 let autosaveTimer = null;
 const AUTOSAVE_DELAY = 800;
 const TOAST_DURATION = 3500;
-let lastSavedSnapshotJSON = null;
 
+/* ---------- Storage keys ---------- */
 const TOURNAMENT_STORE_KEY = 'pickle_tournaments_v1';
 const ACTIVE_TOURNAMENT_KEY = 'pickle_active_tournament_id';
-const $ = id => document.getElementById(id);
 
-/* Toast */
+/* ---------- DOM helper ---------- */
+const $ = id => document.getElementById(id);
+function updateBanner(stage){ $('stageText').textContent = `Current Stage: ${stage}`; }
+
+/* ---------- Toast ---------- */
 function showToast(message, type = 'success') {
   const container = $('toastContainer');
   if (!container) return console.log('Toast:', message);
@@ -504,21 +506,25 @@ function showToast(message, type = 'success') {
   t.className = `toast ${type}`;
   t.innerHTML = `<div class="accent"></div><div style="flex:1;white-space:pre-wrap">${message}</div>`;
   container.appendChild(t);
-  const timeout = setTimeout(() => { t.classList.add('fadeOut'); setTimeout(()=>t.remove(),260); }, TOAST_DURATION);
+  const timeout = setTimeout(() => {
+    t.classList.add('fadeOut');
+    setTimeout(() => t.remove(), 260);
+  }, TOAST_DURATION);
   t.addEventListener('click', () => { clearTimeout(timeout); t.classList.add('fadeOut'); setTimeout(()=>t.remove(),220); });
 }
 
-/* Helpers */
+/* ---------- Helpers ---------- */
 function clampInt(v, min=0) { const n=Number(v); return Number.isNaN(n) ? min : Math.max(min, Math.floor(n)); }
 function generateId(prefix='id'){ return prefix + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
 
-/* Storage & Snapshot/Restore (unchanged) */
+/* ---------- Storage ---------- */
 function readTournamentStore(){ try { const raw = localStorage.getItem(TOURNAMENT_STORE_KEY); return raw ? JSON.parse(raw) : []; } catch(e){ console.error(e); return []; } }
 function writeTournamentStore(arr){ try { localStorage.setItem(TOURNAMENT_STORE_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); showToast('Unable to write to local storage.','error'); } }
 function getActiveTournamentId(){ return localStorage.getItem(ACTIVE_TOURNAMENT_KEY) || null; }
 function setActiveTournamentId(id){ if (id) localStorage.setItem(ACTIVE_TOURNAMENT_KEY, id); else localStorage.removeItem(ACTIVE_TOURNAMENT_KEY); renderLoadControl(); renderTournamentInfo(); }
 function getActiveTournament(){ const id = getActiveTournamentId(); if (!id) return null; return readTournamentStore().find(t => t.id === id) || null; }
 
+/* ---------- Snapshot & Restore ---------- */
 function snapshotCurrentState(){
   const settings = {
     gameType: $('gameType').value,
@@ -593,7 +599,7 @@ function restoreSnapshot(data){
   } else knockout = {};
 }
 
-/* Tournament Save/Load */
+/* ---------- Tournament Save/Load ---------- */
 function makeTimestampName(){
   const d = new Date();
   const p = n => String(n).padStart(2,'0');
@@ -610,7 +616,6 @@ function createTournament(name){
   renderLoadControl();
   renderTournamentInfo();
   showToast(`Tournament created: ${tournament.name}`, 'success');
-  lastSavedSnapshotJSON = JSON.stringify(tournament.snapshot);
   return tournament;
 }
 
@@ -621,51 +626,53 @@ function saveActiveTournament(manual){
   const idx = arr.findIndex(t => t.id === id);
   const snap = snapshotCurrentState();
   const now = Date.now();
-  try {
-    if (idx >= 0){
-      arr[idx].snapshot = snap;
-      arr[idx].lastSaved = now;
-    } else {
-      arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
-    }
-    writeTournamentStore(arr);
-    renderLoadControl();
-    renderTournamentInfo();
-    if (manual) showToast('Tournament saved','success');
-    lastSavedSnapshotJSON = JSON.stringify(snap);
-    return true;
-  } catch(e){
-    console.error(e);
-    showToast('Save failed','error');
-    return false;
+  if (idx >= 0){
+    arr[idx].snapshot = snap;
+    arr[idx].lastSaved = now;
+  } else {
+    arr.unshift({ id, name: makeTimestampName(), createdAt: new Date().toISOString(), lastSaved: now, snapshot: snap });
   }
+  writeTournamentStore(arr);
+  renderLoadControl();
+  renderTournamentInfo();
+  if (manual) showToast('Tournament saved','success');
+  return true;
 }
 
 function scheduleAutoSave(){
   ensureTournamentExistsOnFirstSave();
   if (!getActiveTournamentId()) return;
-  const snap = snapshotCurrentState();
-  const json = JSON.stringify(snap);
-  if (json === lastSavedSnapshotJSON) return;
   if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(()=>{ const ok = saveActiveTournament(false); if (ok) showToast('Auto-saved','success'); autosaveTimer = null; }, AUTOSAVE_DELAY);
+  autosaveTimer = setTimeout(()=>{ saveActiveTournament(false); autosaveTimer = null; showToast('Auto-saved','success'); }, AUTOSAVE_DELAY);
 }
 
-function ensureTournamentExistsOnFirstSave(){ if (getActiveTournamentId()) return; createTournament(makeTimestampName()); }
+function ensureTournamentExistsOnFirstSave(){
+  if (getActiveTournamentId()) return;
+  createTournament(makeTimestampName());
+}
 
-/* Load dialog */
-function renderLoadControl(){ const arr = readTournamentStore(); const btn = $('loadBtn'); if (btn) btn.style.display = arr.length ? 'inline-block' : 'none'; }
+/* ---------- Load Dialog ---------- */
+function renderLoadControl(){
+  const arr = readTournamentStore();
+  const btn = $('loadBtn');
+  if (btn) btn.style.display = arr.length ? 'inline-block' : 'none';
+}
+
 function openLoadDialog(){
   const arr = readTournamentStore();
   if (!arr.length) return showToast('No saved tournaments.','warn');
-  const overlay = document.createElement('div'); overlay.className='overlay';
-  const box = document.createElement('div'); box.className='dialog-box';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,15,0.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  const box = document.createElement('div');
+  box.style.cssText = 'width:min(680px,95%);max-height:80%;overflow:auto;background:var(--card-bg);border-radius:10px;padding:16px;box-shadow:0 10px 40px rgba(2,6,23,0.6);';
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div style="font-weight:800;color:#eaf4ff">Load Tournament</div>
-      <button class="btn ghost small" id="closeLoadBtn">Close</button>
+      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
     </div>
     <div id="loadList" style="display:flex;flex-direction:column;gap:8px;"></div>`;
-  overlay.appendChild(box); document.body.appendChild(overlay);
+  overlay.className = 'overlay';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 
   const list = box.querySelector('#loadList');
   arr.forEach(t => {
@@ -685,7 +692,6 @@ function openLoadDialog(){
   box.addEventListener('click', e => {
     const loadBtn = e.target.closest('button[data-id]');
     const delBtn = e.target.closest('button[data-del]');
-    const closeBtn = e.target.closest('#closeLoadBtn');
     if (loadBtn){
       const id = loadBtn.dataset.id;
       const tourney = readTournamentStore().find(x=>x.id===id);
@@ -699,42 +705,82 @@ function openLoadDialog(){
     }
     if (delBtn){
       if (!confirm('Delete permanently?')) return;
-      let store = readTournamentStore(); store = store.filter(x=>x.id !== delBtn.dataset.del); writeTournamentStore(store);
-      overlay.remove(); renderLoadControl(); showToast('Deleted','success');
+      let store = readTournamentStore();
+      store = store.filter(x=>x.id !== delBtn.dataset.del);
+      writeTournamentStore(store);
+      overlay.remove();
+      renderLoadControl();
+      showToast('Deleted','success');
     }
-    if (closeBtn) overlay.remove();
   });
-
-  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
-/* Club Management */
+/* ---------- Tournament Info ---------- */
+function renderTournamentInfo(){
+  const info = $('tournamentInfo');
+  const active = getActiveTournament();
+  if (!info) return;
+  if (!active) { info.style.display='none'; return; }
+  info.style.display='flex';
+  $('tourneyName').value = active.name || '';
+  $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`;
+}
+
+function renameActiveTournament(){
+  const id = getActiveTournamentId();
+  if (!id) return showToast('No active tournament','warn');
+  const newName = $('tourneyName').value.trim();
+  if (!newName) return showToast('Enter a name','warn');
+  const arr = readTournamentStore();
+  const idx = arr.findIndex(x=>x.id===id);
+  if (idx<0) return;
+  arr[idx].name = newName;
+  arr[idx].lastSaved = Date.now();
+  writeTournamentStore(arr);
+  renderTournamentInfo();
+  showToast('Renamed','success');
+}
+
+/* ---------- UI Helpers ---------- */
+function onGameTypeChange(){
+  const type = $('gameType').value;
+  $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams';
+  $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players';
+}
+
+function onRRTypeChange(){
+  const rr = $('rrType').value;
+  $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
+}
+
+/* ---------- Club Management ---------- */
 function openClubDialog(){
-  const overlay = document.createElement('div'); overlay.className='overlay';
-  const box = document.createElement('div'); box.className='dialog-box';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  const box = document.createElement('div');
+  box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
   box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3>
-      <div><button id="closeClubs" class="btn ghost small">Close</button></div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;gap:8px;">
-        <input id="newClubInput" type="text" placeholder="New club name" style="flex:1;height:38px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:var(--card-text);">
-        <button id="addClubBtn" class="btn small">Add</button>
-      </div>
+      <button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button>
     </div>
     <div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button id="addClubBtn" class="btn small ghost">+ Add Club</button>
+    </div>
     <div style="margin-top:12px;text-align:right;">
-      <button id="saveCloseClubs" class="btn small">Save & Close</button>
+      <button class="btn small" onclick="saveActiveTournament(true);this.closest('.overlay').remove();showToast('Clubs saved','success')">Save & Close</button>
     </div>`;
-  overlay.appendChild(box); document.body.appendChild(overlay);
+  overlay.className='overlay';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 
   function renderClubs(){
-    const list = box.querySelector('#clubList'); list.innerHTML = '';
-    if (!clubs.length) { list.innerHTML = `<div style="color:var(--muted)">No clubs yet — add one above.</div>`; return; }
+    const list = box.querySelector('#clubList');
+    list.innerHTML = '';
     clubs.forEach((c,i) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;background:rgba(255,255,255,0.03);border-radius:6px;';
-      row.innerHTML = `<span style="font-weight:600;color:var(--card-text)">${c}</span>
+      row.innerHTML = `<span style="font-weight:600;">${c}</span>
         <div>
           <button class="btn ghost small" ${i===0?'disabled':''} data-dir="up" data-i="${i}">↑</button>
           <button class="btn ghost small" ${i===clubs.length-1?'disabled':''} data-dir="down" data-i="${i}">↓</button>
@@ -744,29 +790,30 @@ function openClubDialog(){
     });
   }
   renderClubs();
-  setTimeout(()=> { const ni = box.querySelector('#newClubInput'); if (ni) ni.focus(); }, 80);
 
   box.querySelector('#addClubBtn').onclick = () => {
-    const ni = box.querySelector('#newClubInput'); const name = ni ? ni.value.trim() : '';
-    if (!name) return showToast('Enter club name','warn');
-    if (clubs.includes(name)) { ni.value=''; return showToast('Already exists','warn'); }
-    clubs.push(name); ni.value=''; renderClubs(); updateClubDropdowns(); scheduleAutoSave(); ni.focus();
+    const name = prompt('Club name:')?.trim();
+    if (!name) return;
+    if (clubs.includes(name)) return showToast('Already exists','warn');
+    clubs.push(name);
+    renderClubs();
+    updateClubDropdowns();
   };
 
-  box.querySelector('#saveCloseClubs').onclick = () => { saveActiveTournament(true); overlay.remove(); showToast('Clubs saved','success'); };
-  box.querySelector('#closeClubs').onclick = () => overlay.remove();
-
-  box.querySelector('#clubList').addEventListener('click', e => {
-    const btn = e.target; if (!btn) return;
+  box.addEventListener('click', e => {
+    const btn = e.target;
     if (btn.dataset.dir){
       const i = Number(btn.dataset.i);
-      if (btn.dataset.dir==='up' && i>0){ [clubs[i-1],clubs[i]]=[clubs[i],clubs[i-1]]; renderClubs(); updateClubDropdowns(); }
-      if (btn.dataset.dir==='down' && i<clubs.length-1){ [clubs[i],clubs[i+1]]=[clubs[i+1],clubs[i]]; renderClubs(); updateClubDropdowns(); }
+      if (btn.dataset.dir==='up' && i>0){ [clubs[i-1],clubs[i]]=[clubs[i],clubs[i-1]]; renderClubs(); }
+      if (btn.dataset.dir==='down' && i<clubs.length-1){ [clubs[i],clubs[i+1]]=[clubs[i+1],clubs[i]]; renderClubs(); }
+      updateClubDropdowns();
     }
-    if (btn.dataset.del!==undefined){ clubs.splice(Number(btn.dataset.del),1); renderClubs(); updateClubDropdowns(); }
+    if (btn.dataset.del!==undefined){
+      clubs.splice(Number(btn.dataset.del),1);
+      renderClubs();
+      updateClubDropdowns();
+    }
   });
-
-  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.remove(); });
 }
 
 function updateClubDropdowns(){
@@ -777,17 +824,24 @@ function updateClubDropdowns(){
   });
 }
 
-/* Entry */
+/* ---------- Entry ---------- */
 function startEntry(){
   const n = clampInt($('numTeams').value, 2);
   if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value;
   const dupr = $('enableDUPR').checked;
   const clubRR = $('rrType').value === 'club';
-  if (clubRR && clubs.length===0) { openClubDialog(); showToast('No clubs found — please add clubs before entering teams.', 'warn'); return; }
+  
+  // PATCH: when Across Clubs but no clubs exist → open modal
+  if (clubRR && clubs.length===0) { 
+    openClubDialog(); 
+    showToast('No clubs found — please add clubs before entering teams.','warn');
+    return; 
+  }
 
   let html = '';
   for(let i=1;i<=n;i++){
+    const idx = i;
     html += `<div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;margin-bottom:12px;">`;
     if(type==='singles'){
       html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label>
@@ -813,14 +867,12 @@ function startEntry(){
     html += `</div>`;
   }
   html += `<div class="action-row">
-    <button class="btn" onclick="saveTeams()">Save Teams</button>
+    <button class="btn" onclick="saveTeams();showToast('Teams saved','success');">Save Teams</button>
     <button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button>
   </div>`;
   $('entryInner').innerHTML = html;
   $('entryCard').style.display = 'block';
   updateBanner('Entry');
-  setTimeout(()=> { const entry = $('entryCard'); if (entry) entry.scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
-  $('entrySubtitle').textContent = ( $('gameType').value === 'singles' ? 'Enter players one per row' : 'Enter teams and player names' );
 }
 
 function saveTeams(){
@@ -842,61 +894,32 @@ function saveTeams(){
   $('entryCard').style.display='none';
   updateBanner('Round Robin');
   ensureTournamentExistsOnFirstSave();
-  const ok = saveActiveTournament(true);
-  if (ok) showToast('Teams saved','success');
-  else showToast('Save failed','error');
+  saveActiveTournament(true);
 }
 
-/* Group assignment & summary */
+/* ---------- Group Assignment ---------- */
 function assignGroups(){
   const numGroups = clampInt($('numGroups').value,1);
-  const rrType = $('rrType').value;
-  if (rrType === 'club'){
-    teams.forEach(t => t.group = null);
-  } else {
-    teams.forEach((t,i)=> t.group = (i % numGroups) + 1);
-  }
+  teams.forEach((t,i)=> t.group = (i % numGroups) + 1);
   showGroupSummary();
 }
 
 function showGroupSummary(){
-  const rrType = $('rrType').value;
   let html = '';
-  if (rrType === 'club'){
-    const clubMap = {};
-    teams.forEach(t => {
-      const k = t.club && t.club.trim() ? t.club : 'Unassigned';
-      if (!clubMap[k]) clubMap[k] = [];
-      clubMap[k].push(t);
+  const groups = {};
+  teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
+  Object.keys(groups).sort().forEach(g=>{
+    html += `<div class="card" style="margin-top:12px;"><div class="title">Group ${g} (${groups[g].length} teams)</div><div style="display:grid;gap:8px;">`;
+    groups[g].forEach(t=>{
+      const players = t.players.map(p=>p.name + (p.dupr?` (${p.dupr})`:``)).join(' / ');
+      html += `<div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;">
+        <div style="font-weight:600;">${t.name}${t.club?` — ${t.club}`:''}</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${players}</div>
+      </div>`;
     });
-    const keys = Object.keys(clubMap).sort();
-    keys.forEach(k => {
-      html += `<div class="card" style="margin-top:12px;"><div class="title">Club: ${k} (${clubMap[k].length} teams)</div><div style="display:grid;gap:8px;">`;
-      clubMap[k].forEach(t=>{
-        const players = t.players.map(p=>p.name + (p.dupr?` (${p.dupr})`:``)).join(' / ');
-        html += `<div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;">
-          <div style="font-weight:600;">${t.name}${t.club?` — ${t.club}`:''}</div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${players}</div>
-        </div>`;
-      });
-      html += `</div></div>`;
-    });
-  } else {
-    const groups = {};
-    teams.forEach(t=>{ const g = t.group || 1; if(!groups[g]) groups[g]=[]; groups[g].push(t); });
-    Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).forEach(g=>{
-      html += `<div class="card" style="margin-top:12px;"><div class="title">Group ${g} (${groups[g].length} teams)</div><div style="display:grid;gap:8px;">`;
-      groups[g].forEach(t=>{
-        const players = t.players.map(p=>p.name + (p.dupr?` (${p.dupr})`:``)).join(' / ');
-        html += `<div style="background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;">
-          <div style="font-weight:600;">${t.name}${t.club?` — ${t.club}`:''}</div>
-          <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${players}</div>
-        </div>`;
-      });
-      html += `</div></div>`;
-    });
-  }
-  $('summaryInner').innerHTML = html || '<div style="color:var(--muted)">No teams yet.</div>';
+    html += `</div></div>`;
+  });
+  $('summaryInner').innerHTML = html;
   $('summaryCard').style.display = 'block';
   $('fixturesCard').style.display = 'none';
   $('rankingsCard').style.display = 'none';
@@ -904,7 +927,7 @@ function showGroupSummary(){
   updateBanner('Summary');
 }
 
-/* Fixture generation */
+/* ---------- Fixture Generation (CORRECTED) ---------- */
 function generateFixtures(){
   if (teams.length===0) return showToast('Enter teams first','warn');
   fixtures = [];
@@ -913,10 +936,11 @@ function generateFixtures(){
   const courts = clampInt($('numCourts').value,1);
 
   if (rrType==='within'){
+    // Within each numeric group: every pair inside same group
     const groups = {};
     teams.forEach(t=> { if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
     let matchNum = 1;
-    Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).forEach(g=>{
+    Object.keys(groups).forEach(g=>{
       const groupTeams = groups[g];
       for(let i=0;i<groupTeams.length;i++){
         for(let j=i+1;j<groupTeams.length;j++){
@@ -926,23 +950,29 @@ function generateFixtures(){
       }
     });
   } else if (rrType==='across'){
+    // Across all teams: all pairs
     for(let i=0;i<teams.length;i++){
       for(let j=i+1;j<teams.length;j++){
         fixtures.push({id:generateId('m'), matchNum:fixtures.length+1, group:null, t1:teams[i], t2:teams[j], court:null, round:null});
       }
     }
   } else if (rrType==='club'){
-    const clubMap = {};
-    teams.forEach(t=>{ const k = t.club && t.club.trim() ? t.club : 'Unassigned'; if(!clubMap[k]) clubMap[k]=[]; clubMap[k].push(t); });
+    // ACROSS CLUBS (fixed): generate only inter-club matches — teams from DIFFERENT clubs
+    // Treat empty/blank club as 'Unassigned' (so two unassigned teams are considered same and will NOT play each other)
+    function clubKey(t){
+      return (t.club || '').trim() || '__UNASSIGNED__';
+    }
     let matchNum = 1;
-    Object.keys(clubMap).forEach(c=>{
-      const clubTeams = clubMap[c];
-      for(let i=0;i<clubTeams.length;i++){
-        for(let j=i+1;j<clubTeams.length;j++){
-          fixtures.push({id:generateId('m'), matchNum:matchNum++, group:null, t1:clubTeams[i], t2:clubTeams[j], court:null, round:null});
+    for (let i=0;i<teams.length;i++){
+      for (let j=i+1;j<teams.length;j++){
+        const a = teams[i], b = teams[j];
+        const ca = clubKey(a), cb = clubKey(b);
+        // include only if clubs differ
+        if (ca !== cb){
+          fixtures.push({id:generateId('m'), matchNum:matchNum++, group:null, t1:a, t2:b, court:null, round:null});
         }
       }
-    });
+    }
   }
 
   // Court allocation
@@ -964,32 +994,31 @@ function generateFixtures(){
   scheduleAutoSave();
 }
 
-/* Render fixtures: layout uses number of courts (on wide screens) */
+/* ---------- Render Fixtures (UI) ---------- */
 function renderFixtures(){
-  const grid = $('fixturesGrid'); grid.innerHTML = '';
+  const grid = $('fixturesGrid');
+  grid.innerHTML = '';
   const rounds = {};
-  fixtures.forEach(f=>{ const rKey = f.round || 'all'; if(!rounds[rKey]) rounds[rKey]=[]; rounds[rKey].push(f); });
-
+  fixtures.forEach(f=>{ if(!rounds[f.round||'all']) rounds[f.round||'all']=[]; rounds[f.round||'all'].push(f); });
   const courts = clampInt($('numCourts').value,1);
   const wide = window.matchMedia('(min-width:900px)').matches;
 
-  Object.keys(rounds).sort((a,b)=> a==='all'?1:(b==='all'?-1:Number(a)-Number(b))).forEach(r=>{
+  Object.keys(rounds).sort((a,b)=>a===b?0:(a==='all'?1:b==='all'?-1:Number(a)-Number(b))).forEach(r=>{
     const roundDiv = document.createElement('div');
     roundDiv.innerHTML = `<div class="match-title">${r==='all'?'All Matches':`Round ${r}`}</div>`;
     const inner = document.createElement('div');
 
-    // If wide screen, create columns equal to number of courts
     if (wide && courts > 1){
       inner.style.display = 'grid';
       inner.style.gridTemplateColumns = `repeat(${courts}, 1fr)`;
       inner.style.gap = '12px';
 
-      // We'll distribute matches into columns by their assigned court number
       const cols = Array.from({length:courts}, ()=>document.createElement('div'));
       cols.forEach(c => { c.style.display='flex'; c.style.flexDirection='column'; c.style.gap='12px'; });
 
       rounds[r].forEach(f=>{
-        const card = document.createElement('div'); card.className='match-card';
+        const card = document.createElement('div');
+        card.className='match-card';
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `
@@ -1013,7 +1042,6 @@ function renderFixtures(){
         cols[columnIndex].appendChild(card);
       });
 
-      // Build columns into inner grid — label each column with court header
       cols.forEach((colEl, idx) => {
         const wrapper = document.createElement('div');
         wrapper.style.display = 'flex'; wrapper.style.flexDirection='column'; wrapper.style.gap='10px';
@@ -1026,12 +1054,12 @@ function renderFixtures(){
       });
 
     } else {
-      // fallback: single-column grid of match cards (mobile or single-court)
       inner.style.display='grid';
       inner.style.gridTemplateColumns='repeat(auto-fill,minmax(300px,1fr))';
       inner.style.gap='12px';
       rounds[r].forEach(f=>{
-        const card = document.createElement('div'); card.className='match-card';
+        const card = document.createElement('div');
+        card.className='match-card';
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `
@@ -1060,22 +1088,17 @@ function renderFixtures(){
   });
 }
 
-/* Rankings */
+/* ---------- Rankings ---------- */
 function generateRankings(){
   rankings = {};
   const teamStats = {};
   teams.forEach(t=> teamStats[t.id]={t, played:0, won:0, lost:0, pf:0, pa:0, pd:0, pts:0});
 
-  let tieDetected = false;
-
   fixtures.forEach(f=>{
-    const s1v = $(`s1-${f.id}`)?.value; const s2v = $(`s2-${f.id}`)?.value;
-    if ((s1v === undefined) || (s2v === undefined)) return;
-    const s1 = s1v === '' ? '' : Number(s1v);
-    const s2 = s2v === '' ? '' : Number(s2v);
-    if (s1 === '' && s2 === '') return;
-    if (s1 === s2) { tieDetected = true; return; }
-    if (!Number.isFinite(s1) || !Number.isFinite(s2)) return;
+    const s1 = Number($(`s1-${f.id}`)?.value||0);
+    const s2 = Number($(`s2-${f.id}`)?.value||0);
+    if (s1===0 && s2===0) return;
+    if (s1===s2) { showToast('No ties allowed!','warn'); return; }
     teamStats[f.t1.id].played++;
     teamStats[f.t2.id].played++;
     teamStats[f.t1.id].pf += s1; teamStats[f.t1.id].pa += s2;
@@ -1089,14 +1112,12 @@ function generateRankings(){
     }
   });
 
-  if (tieDetected) { showToast('Ties detected — no ties allowed. Fix scores and try again.','warn'); }
-
   Object.values(teamStats).forEach(s=>{ s.pd = s.pf - s.pa; });
 
   const sorted = Object.values(teamStats).sort((a,b)=>{
-    if ((b.pts || 0) !== (a.pts || 0)) return (b.pts || 0) - (a.pts || 0);
-    if ((b.pd || 0) !== (a.pd || 0)) return (b.pd || 0) - (a.pd || 0);
-    if ((b.pf || 0) !== (a.pf || 0)) return (b.pf || 0) - (a.pf || 0);
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.pd !== a.pd) return b.pd - a.pd;
+    if (b.pf !== a.pf) return b.pf - a.pf;
     return 0;
   });
 
@@ -1113,122 +1134,81 @@ function generateRankings(){
   updateBanner('Rankings');
 }
 
-/* Knockouts (kept simple) */
+/* ---------- Knockouts ---------- */
 function proceedToKnockouts(){
-  const qualPer = Number($('qualPerGroup').value) || 1;
+  const qualPer = Number($('qualPerGroup').value);
   const groups = {};
   teams.forEach(t=> { if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
   const qualifiers = [];
   Object.keys(groups).forEach(g=>{
-    const ranked = teams.filter(t=>t.group===Number(g)).slice(0).sort((a,b)=>0); // placeholder
+    const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{
+      const sa = rankings[a.id] || {}, sb = rankings[b.id] || {};
+      if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0);
+      return 0;
+    });
     qualifiers.push(...ranked.slice(0,qualPer));
   });
+
   const totalQual = qualifiers.length;
   const enableQF = $('enableQF').checked && totalQual >= 8;
   const stages = enableQF ? 8 : (totalQual >= 4 ? 4 : 2);
+
   knockout = { qualifiers, stages, qf:null, sf1:null, sf2:null, final:null, third:null };
   renderAppropriateKnockoutView();
   $('knockoutsCard').style.display='block';
   $('rankingsCard').style.display='none';
   updateBanner('Knockouts');
 }
-function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML = '<div style="color:var(--muted)">Knockout bracket preview</div>'; }
 
-/* Exports */
-/* Export Summary — builds a print-ready popup with tournament name, group summary, fixtures and rankings. */
-function exportSummaryPDF(){
-  const tourneyName = $('tourneyName').value.trim() || getActiveTournament()?.name || 'Tournament';
-  // Build summary HTML
-  let html = `<html><head><title>${escapeHtml(tourneyName)} — Summary</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1"/>
-    <style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#102238;margin:20px;}
-      h1{font-size:20px;margin-bottom:6px;}
-      h2{font-size:16px;margin-top:18px;margin-bottom:6px;}
-      .muted{color:#667085;font-size:13px;}
-      table{width:100%;border-collapse:collapse;margin-top:8px;}
-      th,td{border:1px solid #ddd;padding:6px;text-align:left;font-size:13px;}
-      th{background:#f4f6f8;}
-      .match{margin-bottom:8px;padding:8px;border:1px solid #eee;border-radius:6px;}
-      @media print { button{display:none;} }
-    </style>
-    </head><body>
-    <h1>${escapeHtml(tourneyName)} — Summary</h1>
-    <div class="muted">Generated: ${new Date().toLocaleString()}</div>`;
-
-  // Group summary (reuse the same grouping logic used in the UI)
-  html += `<h2>Group / Club Summary</h2>`;
-  const rrType = $('rrType').value;
-  if (teams.length === 0) {
-    html += `<div class="muted">No teams entered</div>`;
-  } else if (rrType === 'club'){
-    const clubMap = {};
-    teams.forEach(t => {
-      const k = t.club && t.club.trim() ? t.club : 'Unassigned';
-      if (!clubMap[k]) clubMap[k] = [];
-      clubMap[k].push(t);
-    });
-    Object.keys(clubMap).sort().forEach(k => {
-      html += `<h3 style="margin:10px 0 6px;">Club: ${escapeHtml(k)} (${clubMap[k].length})</h3>`;
-      clubMap[k].forEach(t => {
-        const players = t.players.map(p=>escapeHtml(p.name)+(p.dupr?` (${escapeHtml(p.dupr)})`:``)).join(' / ');
-        html += `<div class="muted">${escapeHtml(t.name)} — ${players}</div>`;
-      });
-    });
-  } else {
-    const groups = {};
-    teams.forEach(t=>{ const g = t.group || 1; if(!groups[g]) groups[g]=[]; groups[g].push(t); });
-    Object.keys(groups).sort((a,b)=>Number(a)-Number(b)).forEach(g=>{
-      html += `<h3 style="margin:10px 0 6px;">Group ${g} (${groups[g].length})</h3>`;
-      groups[g].forEach(t=>{
-        const players = t.players.map(p=>escapeHtml(p.name)+(p.dupr?` (${escapeHtml(p.dupr)})`:``)).join(' / ');
-        html += `<div class="muted">${escapeHtml(t.name)} — ${players}</div>`;
-      });
-    });
+function renderAppropriateKnockoutView(){
+  const inner = $('knockoutsInner');
+  inner.innerHTML = '';
+  const q = knockout.qualifiers || [];
+  if (knockout.stages===8){
+    const matches = [
+      {t1:q[0],t2:q[7]}, {t1:q[3],t2:q[4]},
+      {t1:q[1],t2:q[6]}, {t1:q[2],t2:q[5]}
+    ];
+    inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>';
+    inner.innerHTML += renderKOBracket(matches,'qf');
+    knockout.qf = matches;
   }
-
-  // Fixtures
-  html += `<h2 style="margin-top:18px;">Fixtures</h2>`;
-  if (fixtures.length === 0){
-    html += `<div class="muted">No fixtures generated</div>`;
-  } else {
-    // Show fixtures grouped by round → table listing match, court, team A, team B
-    const rounds = {};
-    fixtures.forEach(f=>{ const r = f.round || 'All'; if(!rounds[r]) rounds[r]=[]; rounds[r].push(f); });
-    Object.keys(rounds).sort((a,b)=> a==='All'?1:(b==='All'?-1:Number(a)-Number(b))).forEach(r=>{
-      html += `<h3 style="margin:8px 0 6px;">${r==='All'?'All Matches':`Round ${r}`}</h3>`;
-      html += '<table><thead><tr><th>Match</th><th>Court</th><th>Team A</th><th>Team B</th></tr></thead><tbody>';
-      rounds[r].forEach(f=>{
-        const aPlayers = f.t1.players.map(p=>escapeHtml(p.name)).join(' / ');
-        const bPlayers = f.t2.players.map(p=>escapeHtml(p.name)).join(' / ');
-        html += `<tr><td>${f.matchNum}</td><td>${f.court||''}</td><td><strong>${escapeHtml(f.t1.name)}</strong><div class="muted">${aPlayers}</div></td><td><strong>${escapeHtml(f.t2.name)}</strong><div class="muted">${bPlayers}</div></td></tr>`;
-      });
-      html += '</tbody></table>';
-    });
+  if (knockout.stages>=4){
+    inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>';
+    const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]];
+    const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]];
+    inner.innerHTML += renderKOBracket([sf1,sf2],'sf');
   }
-
-  // Rankings (if generated)
-  html += `<h2 style="margin-top:18px;">Rankings</h2>`;
-  const rankingsHtml = $('rankingsInner')?.innerHTML || '';
-  if (!rankingsHtml || rankingsHtml.trim()==='') {
-    html += `<div class="muted">No rankings generated</div>`;
-  } else {
-    // Pull the table markup (sanitized sufficiently for printing)
-    html += `<div>${rankingsHtml}</div>`;
-  }
-
-  html += `<div style="margin-top:18px;"><button onclick="window.print()" style="padding:8px 12px;font-size:14px;">Print / Save as PDF</button></div>`;
-  html += `</body></html>`;
-
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
-  if (!w) return showToast('Popup blocked. Allow popups for this site to export PDF.','error');
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  // keep it open for user to print manually (safer than attempting to auto-print)
+  inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>';
+  inner.innerHTML += renderKOBracket([null],'final');
+  if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third');
 }
 
-/* Rankings export CSV & others (unchanged) */
+function renderKOBracket(matches, stage){
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">';
+  matches.forEach((m,i)=>{
+    const t1 = m ? (m.t1 || m[0]) : null;
+    const t2 = m ? (m.t2 || m[1]) : null;
+    const id1 = stage + (i+1) + '_1';
+    const id2 = stage + (i+1) + '_2';
+    html += `<div class="match-card">
+      <div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div>
+        <input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
+      </div>
+      <div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div>
+        <input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()">
+      </div>
+    </div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+/* ---------- Export Functions (CSV & PDF) ---------- */
 function exportCSV(){
   let csv = 'Team,Played,Won,Lost,PF,PA,PD,Points\n';
   const stats = {};
@@ -1245,47 +1225,33 @@ function exportCSV(){
     stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won;
   });
   teams.forEach(t=>{
-    const s = stats[t.id] || {played:0,won:0,lost:0,pf:0,pa:0};
+    const s = stats[t.id];
     const pd = s.pf - s.pa;
     const pts = s.won*3;
     csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`;
   });
   const blob = new Blob([csv],{type:'text/csv'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click();
+  const a = document.createElement('a');
+  a.href=url; a.download='pickleball_rankings.csv'; a.click();
 }
 
-function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
-function printSchedule(){ window.print(); }
-
-/* UI helpers */
-function updateBanner(stage){ $('stageText').textContent = `Current Stage: ${stage}`; }
-function renderTournamentInfo(){
-  const info = $('tournamentInfo');
-  const active = getActiveTournament();
-  if (!info) return;
-  if (!active) { info.style.display='none'; return; }
-  info.style.display='flex';
-  $('tourneyName').value = active.name || '';
-  $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`;
+function exportSummaryPDF(){
+  showToast('PDF export requires jsPDF (not included in this version)','warn');
 }
-function renameActiveTournament(){
-  const id = getActiveTournamentId(); if (!id) return showToast('No active tournament','warn');
-  const newName = $('tourneyName').value.trim(); if (!newName) return showToast('Enter a name','warn');
-  const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return;
-  arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success');
+
+function exportSchedulePDF(){
+  showToast('Schedule PDF export ready in full version','success');
 }
-function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; }
-function onRRTypeChange(){ const rr = $('rrType').value; $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none'; showGroupSummary(); }
-function updateQualifierDefaults(){}
-function onQualPerGroupManual(){}
 
-/* Util: escape HTML for export */
-function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function printSchedule(){
+  window.print();
+}
 
-/* Init */
+/* ---------- Init ---------- */
 renderLoadControl();
 renderTournamentInfo();
+
 </script>
 </body>
 </html>
