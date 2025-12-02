@@ -319,6 +319,10 @@
     border:1px solid rgba(255,255,255,0.02);
   }
   .court-label{ font-size:13px;font-weight:700;color:var(--muted); margin-bottom:6px; }
+
+  /* disabled appearance for No. of Groups when not applicable */
+  .disabled-hint{ font-size:12px; color:var(--muted); margin-top:6px; font-style:italic; opacity:0.9; }
+  .disabled-input{ opacity:0.55; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -354,9 +358,10 @@
                 <option value="balanced" selected>Sequential (Balanced)</option>
               </select>
             </div>
-            <div class="form-item">
-              <label>No. of Groups</label>
+            <div class="form-item" id="groupsFormItem">
+              <label id="groupsLabel">No. of Groups</label>
               <input id="numGroups" type="number" min="1" value="2" oninput="updateQualifierDefaults()">
+              <div id="groupsHint" class="disabled-hint" style="display:none;">Groups apply only to ‘Within Groups’ mode.</div>
             </div>
             <div class="form-item">
               <label>Round-Robin Type</label>
@@ -631,7 +636,36 @@ function renameActiveTournament(){ const id = getActiveTournamentId(); if (!id) 
 
 /* ---------- UI helpers ---------- */
 function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; }
-function onRRTypeChange(){ const rr = $('rrType').value; $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none'; }
+
+function updateGroupFieldState(){
+  const rr = $('rrType').value;
+  const groupsInput = $('numGroups');
+  const groupsFormItem = document.getElementById('groupsFormItem');
+  const groupsHint = $('groupsHint');
+  const groupsLabel = $('groupsLabel');
+  const hintText = "Groups apply only to 'Within Groups' mode.";
+  if (rr === 'within'){
+    // enabled
+    groupsInput.disabled = false;
+    groupsFormItem.classList.remove('disabled-input');
+    groupsHint.style.display = 'none';
+    groupsInput.removeAttribute('title');
+    groupsLabel.removeAttribute('title');
+  } else {
+    // disabled + greyed + helper text visible + tooltip
+    groupsInput.disabled = true;
+    groupsFormItem.classList.add('disabled-input');
+    groupsHint.style.display = 'block';
+    groupsInput.setAttribute('title', hintText);
+    groupsLabel.setAttribute('title', hintText);
+  }
+}
+
+function onRRTypeChange(){
+  const rr = $('rrType').value;
+  $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
+  updateGroupFieldState();
+}
 
 /* ---------- Club Management ---------- */
 function openClubDialog(){
@@ -931,8 +965,11 @@ function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included 
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
 
+/* ---------- Helpers used across UI ---------- */
+function updateBanner(stage){ const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
+
 /* ---------- Init ---------- */
-renderLoadControl(); renderTournamentInfo();
+renderLoadControl(); renderTournamentInfo(); updateGroupFieldState();
 
 </script>
 </body>
