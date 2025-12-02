@@ -982,6 +982,52 @@ function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included 
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
 
+/* ------------------ Small smoke-check patches ------------------
+   These three functions fix the missing handlers and harden the DUPR template branch.
+-----------------------------------------------------------------*/
+function updateQualifierDefaults(){
+  // Called when numGroups input changes.
+  try {
+    const ng = clampInt($('numGroups').value, 1);
+    const qualSel = $('qualPerGroup');
+    if (!qualSel) return;
+    const cur = Number(qualSel.value) || 1;
+    if (cur > ng) {
+      qualSel.value = Math.max(1, Math.floor(ng / 2)) || 1;
+    }
+  } catch(e){
+    console.warn('updateQualifierDefaults error', e);
+  }
+}
+
+function onQualPerGroupManual(){
+  // No-op placeholder so onchange won't throw; can be extended later.
+  return;
+}
+
+function duprExportTemplateCsvLines(){
+  const DUPR_HEADERS = [
+    "<leave empty>", "<leave empty>", "<leave empty>",
+    "matchType","event","date",
+    "playerA1","playerA1DuprId","playerA1ExternalId",
+    "playerA2","playerA2DuprId","playerA2ExternalId",
+    "playerB1","playerB1DuprId","playerB1ExternalId",
+    "playerB2","playerB2DuprId","playerB2ExternalId",
+    "<leave empty>",
+    "teamAGame1","teamBGame1",
+    "teamAGame2","teamBGame2",
+    "teamAGame3","teamBGame3",
+    "teamAGame4","teamBGame4",
+    "teamAGame5","teamBGame5"
+  ];
+  const sampleRow = [
+    '', '', '', 'Doubles', 'Example Event', formatYMD(new Date()),
+    'Vignesh S', '', '', 'Arjun K', '', '', 'Megh K', '', '', 'Pranav R', '', '', '',
+    '11','6','9','11','11','8','','',''
+  ];
+  return [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
+}
+
 /* ---------- DUPR CSV Export Implementation (integrated) ---------- */
 
 /*
@@ -1010,21 +1056,8 @@ function formatYMD(d){
 }
 
 function buildDupRRowFromFixture(f){
-  // Header positions:
-  // 0-2: leave empty
-  // 3: matchType
-  // 4: event
-  // 5: date (YYYY-MM-DD)
-  // 6-8: playerA1, playerA1DuprId, playerA1ExternalId
-  // 9-11: playerA2, playerA2DuprId, playerA2ExternalId
-  // 12-14: playerB1, playerB1DuprId, playerB1ExternalId
-  // 15-17: playerB2, playerB2DuprId, playerB2ExternalId
-  // 18: <leave empty>
-  // 19-28: teamAGame1,teamBGame1,...teamAGame5,teamBGame5
-
-  const matchType = 'Doubles'; // app currently focused on doubles; can adapt for singles
+  const matchType = 'Doubles';
   const eventName = ($('tourneyName') && $('tourneyName').value.trim()) || (getActiveTournament() ? getActiveTournament().name : '') || '';
-  // no per-match date stored by default — use snapshot timestamp if available else today
   const active = getActiveTournament();
   let dateStr = '';
   if (active && active.snapshot && active.snapshot.timestamp) {
@@ -1033,7 +1066,6 @@ function buildDupRRowFromFixture(f){
     dateStr = formatYMD(new Date());
   }
 
-  // players
   const Aplayers = f.t1 && Array.isArray(f.t1.players) ? f.t1.players : [];
   const Bplayers = f.t2 && Array.isArray(f.t2.players) ? f.t2.players : [];
 
@@ -1042,25 +1074,20 @@ function buildDupRRowFromFixture(f){
   const B1 = Bplayers[0] || { name: f.t2.name || '' };
   const B2 = Bplayers[1] || { name: (Bplayers[0] ? '' : f.t2.name) };
 
-  // DUPR IDs only if enabled and present in player.dupr
   const duprEnabled = !!$('enableDUPR')?.checked;
   const A1dupr = duprEnabled ? (A1.dupr || A1.duprId || A1.dupr_id || '') : '';
   const A2dupr = duprEnabled ? (A2.dupr || A2.duprId || A2.dupr_id || '') : '';
   const B1dupr = duprEnabled ? (B1.dupr || B1.duprId || B1.dupr_id || '') : '';
   const B2dupr = duprEnabled ? (B2.dupr || B2.duprId || B2.dupr_id || '') : '';
 
-  // External IDs: we do not have separate external IDs — leave empty (could use team id if desired)
   const A1ext = ''; const A2ext = ''; const B1ext = ''; const B2ext = '';
 
-  // Scores: app currently stores one pair of inputs (s1-<id>, s2-<id>).
-  // Map that to Game1; leave games 2-5 empty.
   const s1 = $(`s1-${f.id}`) ? $(`s1-${f.id}`).value.trim() : '';
   const s2 = $(`s2-${f.id}`) ? $(`s2-${f.id}`).value.trim() : '';
   const games = [
     (s1 || s2) ? s1 : '',
     (s1 || s2) ? s2 : ''
   ];
-  // pad remaining games (4 more slots -> total 5 games)
   while (games.length < 10) games.push('');
 
   const row = [
@@ -1072,13 +1099,11 @@ function buildDupRRowFromFixture(f){
     B2.name || '', B2dupr || '', B2ext,
     ''
   ];
-  // append 10 score fields
   row.push(...games.slice(0,10));
   return row;
 }
 
 function exportDupRCSV(){
-  // Build header exactly as provided
   const DUPR_HEADERS = [
     "<leave empty>", "<leave empty>", "<leave empty>",
     "matchType","event","date",
@@ -1095,15 +1120,7 @@ function exportDupRCSV(){
   ];
 
   if (!fixtures || !fixtures.length) {
-    // produce template CSV with example row
-    const exampleMatch = fixtures[0];
-    // create a template header + one example row using a sample object
-    const sampleRow = [
-      '', '', '', 'Doubles', 'Example Event', formatYMD(new Date()),
-      'Vignesh S', '', '', 'Arjun K', '', '', 'Megh K', '', '', 'Pranav R', '', '', '',
-      '11','6','9','11','11','8','','',''
-    ];
-    const lines = [DUPR_HEADERS.map(csvEscape).join(','), sampleRow.map(csvEscape).join(',')];
+    const lines = duprExportTemplateCsvLines();
     const blob = new Blob([lines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
