@@ -24,7 +24,7 @@
   }
   *, *::before, *::after { box-sizing:border-box; }
   html,body{height:100%;margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Arial,sans-serif;background:var(--page-bg);color:#102238;-webkit-font-smoothing:antialiased;}
-  body { padding-top: 46px; } /* increased to ensure banner not overlap on small screens */
+  body { padding-top: 46px; padding-bottom:18px; } /* ensure bottom space for mobile UIs */
 
   .banner{
     position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:center;
@@ -262,6 +262,36 @@
 
   /* overlay box helper */
   .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:9999; background:rgba(2,6,15,0.45); }
+
+  /* ---------- Mobile-specific: ensure Setup card fits on common phones ---------- */
+  @media (max-width:600px) {
+    /* Target only the Setup card */
+    .setup-card{
+      padding:10px;                /* reduce vertical padding */
+      margin-bottom:8px;
+    }
+    .setup-card .title{ font-size:14px; margin-bottom:8px; }
+    .setup-card label{ font-size:12px; margin-bottom:4px; }
+    .setup-card input[type="text"],
+    .setup-card input[type="number"],
+    .setup-card select,
+    .setup-card .score-input { height:36px; padding:6px 10px; font-size:13px; }
+
+    .setup-card .form-row{ gap:8px; }
+    .setup-card .checkbox-row{ gap:8px; }
+
+    /* Make action buttons more compact and fit side-by-side */
+    .setup-card .action-row{ margin-top:10px; gap:8px; justify-content:flex-end; }
+    .setup-card .action-row .btn{ max-width:48%; height:40px; font-size:13px; }
+    .setup-card .action-row .btn.small{ height:36px; }
+
+    /* Slightly reduce overall layout gap */
+    .grid{ gap:10px; }
+
+    /* reduce banner height on small screens slightly (keeps visibility) */
+    .banner{ height:44px; }
+    body { padding-top: 44px; }
+  }
 </style>
 <!-- jsPDF CDN (for PDF export) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -278,7 +308,7 @@
     <div class="grid">
       <div>
         <!-- Setup -->
-        <div class="card">
+        <div class="card setup-card">
           <div class="title">Setup</div>
           <div class="form-row">
             <div class="form-item">
@@ -335,11 +365,11 @@
             </div>
           </div>
 
-          <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px;">
+          <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">
             <button id="manageClubsBtn" class="btn small ghost" style="display:none;" onclick="openClubDialog()">Manage Clubs</button>
           </div>
 
-          <div class="action-row">
+          <div class="action-row" style="margin-top:12px;">
             <button class="btn" id="startEntryBtn" onclick="startEntry()">Next: Enter Details</button>
             <button class="btn ghost" id="resetBtn" onclick="if(confirm('Reset everything?'))location.reload()">Reset All</button>
             <button class="btn ghost small" id="loadBtn" onclick="openLoadDialog()">Load</button>
@@ -1342,9 +1372,6 @@ function onQualPerGroupManual(){ /* placeholder: future logic */ }
 
 /* small helper: update qualifier defaults (kept for compatibility) */
 function updateQualifierDefaults(){}
-
-/* preserve renderFixtures, generateFixtures etc (already above) */
-
 </script>
 </body>
 </html>
