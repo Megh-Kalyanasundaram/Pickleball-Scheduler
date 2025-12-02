@@ -249,53 +249,6 @@
   .dialog-box{ width: min(680px, 100%); max-width:680px; background:var(--card-bg); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); max-height:88vh; overflow:auto; box-sizing:border-box; margin:0 auto; }
   @media (max-width:600px){ .dialog-box{ width: calc(100% - 32px); padding:10px; border-radius:var(--radius); } }
 
-  /* Mobile-specific: ensure Setup card fits on common phones */
-  @media (max-width:600px) {
-    .setup-card{
-      padding:10px;
-      margin-bottom:8px;
-    }
-    .setup-card .title{ font-size:14px; margin-bottom:8px; }
-    .setup-card label{ font-size:12px; margin-bottom:4px; }
-    .setup-card input[type="text"],
-    .setup-card input[type="number"],
-    .setup-card select,
-    .setup-card .score-input { height:36px; padding:6px 10px; font-size:13px; }
-
-    .setup-card .form-row{ gap:8px; }
-    .setup-card .checkbox-row{ gap:8px; }
-
-    .setup-card .action-row{ margin-top:10px; gap:8px; justify-content:flex-end; }
-    .setup-card .action-row .btn{ max-width:48%; height:40px; font-size:13px; }
-    .setup-card .action-row .btn.small{ height:36px; }
-
-    .grid{ gap:10px; }
-
-    .banner{ height:44px; }
-    body { padding-top: 44px; }
-  }
-
-  /* override for narrow phones to keep checkboxes on a single line */
-  @media (max-width:480px) {
-    .setup-card .form-row { grid-template-columns: repeat(2, 1fr); }
-    .setup-card .form-item { margin-bottom:6px; }
-    .setup-card .form-item.checkbox-row {
-      display:flex;
-      align-items:center;
-      justify-content:flex-start;
-      gap:10px;
-      padding-top:4px;
-      padding-bottom:4px;
-    }
-    .setup-card .form-item.checkbox-row label { margin:0; font-size:13px; }
-    .setup-card .form-item.checkbox-row input[type="checkbox"] { margin-right:6px; }
-  }
-
-  .entry-header{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
-  .save-icon-btn{ background:transparent; border:0; cursor:pointer; padding:6px; border-radius:8px; transition:background .15s; }
-  .save-icon-btn:hover{ background:rgba(255,255,255,0.02); }
-  .save-icon-btn svg{ display:block; width:20px; height:20px; }
-
   /* Schedule view styles */
   .schedule-grid{
     display:flex;
@@ -324,8 +277,16 @@
   .disabled-input{ opacity:0.55; pointer-events:none; }
   .disabled-checkbox{ opacity:0.55; pointer-events:none; }
 
-  /* helper to visually hide non-dupr when DUPR-only editing */
-  .hidden-while-dup { display: none !important; }
+  /* Visual emphasis for 'None - Only RR' selection */
+  .form-item.qual-none select {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 4px rgba(212,175,55,0.07);
+  }
+  /* Attempt to style the option itself (browser-dependent) */
+  select option[value="0"] {
+    font-weight:700;
+    color: #b07f1a;
+  }
 </style>
 </head>
 <body>
@@ -358,7 +319,7 @@
               <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
-                <option value="club">Across Clubs</option>
+                <option value="club">Club vs Club</option>
               </select>
             </div>
 
@@ -368,13 +329,14 @@
             </div>
 
             <div class="form-item">
-              <label id="numLabel">No. of Teams</label>
+              <label id="numLabel">Total No. of Teams</label>
               <input id="numTeams" type="number" min="2" value="8" oninput="onParticipantCountChange()">
             </div>
 
-            <div class="form-item">
-              <label id="qualLabel">Qualifiers/group</label>
-              <select id="qualPerGroup" onchange="onQualPerGroupManual()">
+            <div class="form-item" id="qualContainer">
+              <label id="qualLabel" title="Select number of qualifiers per group. Choose 'None - Only RR' to stop at Round-Robin.">Qualifiers/group</label>
+              <select id="qualPerGroup" onchange="onQualPerGroupManual(); updateQualVisual();">
+                <option value="0">None - Only RR</option>
                 <option value="1">1</option>
                 <option value="2" selected>2</option>
                 <option value="4">4</option>
@@ -397,7 +359,7 @@
           </div>
 
           <div class="action-row" style="margin-top:12px;">
-            <button class="btn" id="startEntryBtn" onclick="startEntry(false,false)">Next: Enter Details</button>
+            <button class="btn" id="startEntryBtn" onclick="startEntry()">Next: Enter Details</button>
             <button class="btn ghost" id="resetBtn" onclick="if(confirm('Reset everything?'))location.reload()">Reset All</button>
             <button class="btn ghost small" id="loadBtn" onclick="openLoadDialog()">Load</button>
           </div>
@@ -431,18 +393,12 @@
           <div style="display:flex;gap:8px;align-items:center;">
             <div class="muted" id="tourneyMeta" style="font-size:12px;"></div>
             <button class="btn small ghost" onclick="renameActiveTournament()">Rename</button>
-            <button id="editTeamsBtnTop" class="btn small ghost" title="Edit teams" onclick="openEditTeams()" style="display:none;">Edit Teams</button>
           </div>
         </div>
 
         <!-- Summary -->
         <div id="summaryCard" class="card" style="margin-top:12px;display:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div class="title">Group Summary</div>
-            <div>
-              <button id="editTeamsBtnSummary" class="btn small ghost" onclick="openEditTeams()" style="display:none;">Edit Teams</button>
-            </div>
-          </div>
+          <div class="title">Group Summary</div>
           <div id="summaryInner"></div>
         </div>
 
@@ -564,7 +520,7 @@ function snapshotCurrentState(){
     numTeams: Number($('numTeams').value) || 0,
     numCourts: Number($('numCourts').value) || 1,
     numGroups: Number($('numGroups').value) || 1,
-    qualPerGroup: Number($('qualPerGroup').value) || 1,
+    qualPerGroup: Number($('qualPerGroup').value) || 0,
     enableQF: !!$('enableQF')?.checked,
     rrType: $('rrType').value,
     clubs: clubs.slice(),
@@ -587,7 +543,7 @@ function restoreSnapshot(data){
   $('numTeams').value = s.numTeams || 8;
   $('numCourts').value = s.numCourts || 2;
   $('numGroups').value = s.numGroups || 2;
-  $('qualPerGroup').value = s.qualPerGroup || 2;
+  $('qualPerGroup').value = (typeof s.qualPerGroup !== 'undefined') ? String(s.qualPerGroup) : '2';
   if ($('enableQF')) $('enableQF').checked = !!s.enableQF;
   $('rrType').value = s.rrType || 'within';
   clubs = (s.clubs && Array.isArray(s.clubs)) ? s.clubs.slice() : [];
@@ -599,6 +555,8 @@ function restoreSnapshot(data){
   showGroupSummary(); renderFixtures();
   const scores = data.fixtureScores || {};
   Object.keys(scores).forEach(k => { if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || ''; if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || ''; });
+  // also update visual emphasis for qualifiers
+  updateQualVisual();
 }
 
 /* ---------- Save/load UI ---------- */
@@ -639,15 +597,11 @@ function openLoadDialog(){
 }
 
 /* ---------- Tournament info ---------- */
-function renderTournamentInfo(){ const info = $('tournamentInfo'); const active = getActiveTournament(); if (!info) return; if (!active) { info.style.display='none'; // hide edit buttons when no active tournament
-    document.querySelectorAll('#editTeamsBtnTop,#editTeamsBtnSummary').forEach(b=>{ if(b) b.style.display='none'; });
-    return; } info.style.display='flex'; $('tourneyName').value = active.name || ''; $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`; // show edit buttons
-  document.querySelectorAll('#editTeamsBtnTop,#editTeamsBtnSummary').forEach(b=>{ if(b) b.style.display='inline-block'; });
-}
+function renderTournamentInfo(){ const info = $('tournamentInfo'); const active = getActiveTournament(); if (!info) return; if (!active) { info.style.display='none'; return; } info.style.display='flex'; $('tourneyName').value = active.name || ''; $('tourneyMeta').textContent = `Saved: ${new Date(active.lastSaved||active.createdAt).toLocaleString()}`; }
 function renameActiveTournament(){ const id = getActiveTournamentId(); if (!id) return showToast('No active tournament','warn'); const newName = $('tourneyName').value.trim(); if (!newName) return showToast('Enter a name','warn'); const arr = readTournamentStore(); const idx = arr.findIndex(x=>x.id===id); if (idx<0) return; arr[idx].name = newName; arr[idx].lastSaved = Date.now(); writeTournamentStore(arr); renderTournamentInfo(); showToast('Renamed','success'); }
 
 /* ---------- UI helpers ---------- */
-function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'No. of Players' : 'No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; updateQFAvailability(); }
+function onGameTypeChange(){ const type = $('gameType').value; $('numLabel').textContent = (type === 'singles') ? 'Total No. of Players' : 'Total No. of Teams'; $('entryTitle').textContent = (type === 'singles') ? 'Enter Players' : 'Enter Teams & Players'; updateQFAvailability(); }
 
 function updateGroupFieldState(){
   const rr = $('rrType').value;
@@ -666,7 +620,7 @@ function updateQualLabel(){
   const rr = $('rrType').value;
   const qLabel = $('qualLabel');
   if (rr === 'within') qLabel.textContent = 'Qualifiers/group';
-  else if (rr === 'club') qLabel.textContent = 'Qualifiers/club';
+  else if (rr === 'club') qLabel.textContent = 'Qualifiers/Club';
   else qLabel.textContent = '# of Qualifiers';
 }
 
@@ -675,6 +629,7 @@ function onRRTypeChange(){
   $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
   updateGroupFieldState();
   updateQualLabel();
+  updateQualVisual();
 }
 
 /* ---------- QF checkbox availability ---------- */
@@ -701,10 +656,15 @@ function onParticipantCountChange(){
 }
 
 /* ---------- Club Management ---------- */
-function openClubDialog(){
+/*
+ openClubDialog(promptAdd = false)
+ - promptAdd true => immediately triggers the Add Club prompt (same as user clicking "+ Add Club")
+ - dialog renders current clubs and allows add/delete/reorder. Save & Close persists to snapshot when user clicks Save & Close.
+*/
+function openClubDialog(promptAdd = false){
   const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
   const box = document.createElement('div'); box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
-  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3><button class="btn ghost small" onclick="this.closest('.overlay').remove()">Close</button></div><div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div><div style="margin-top:16px;display:flex;gap:8px;"><button id="addClubBtn" class="btn small ghost">+ Add Club</button></div><div style="margin-top:12px;text-align:right;"><button class="btn small" onclick="saveActiveTournament(true);this.closest('.overlay').remove();showToast('Clubs saved','success')">Save & Close</button></div>`;
+  box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h3 style="margin:0;color:#eaf4ff;">Manage Clubs</h3><button class="btn ghost small" onclick="this.closest('.overlay')?.remove()">Close</button></div><div id="clubList" style="display:flex;flex-direction:column;gap:8px;"></div><div style="margin-top:16px;display:flex;gap:8px;"><button id="addClubBtn" class="btn small ghost">+ Add Club</button></div><div style="margin-top:12px;text-align:right;"><button class="btn small" id="saveClubsBtn">Save & Close</button></div>`;
   overlay.className='overlay'; overlay.appendChild(box); document.body.appendChild(overlay);
 
   function renderClubs(){
@@ -714,11 +674,21 @@ function openClubDialog(){
       row.innerHTML = `<span style="font-weight:600;">${c}</span><div><button class="btn ghost small" ${i===0?'disabled':''} data-dir="up" data-i="${i}">↑</button><button class="btn ghost small" ${i===clubs.length-1?'disabled':''} data-dir="down" data-i="${i}">↓</button><button class="btn ghost small" data-del="${i}">Delete</button></div>`;
       list.appendChild(row);
     });
+    if (clubs.length===0){
+      const hint = document.createElement('div'); hint.style.cssText = 'color:var(--muted);font-size:13px;padding:8px;background:rgba(255,255,255,0.01);border-radius:6px;'; hint.textContent = 'No clubs yet. Click + Add Club to create one.'; list.appendChild(hint);
+    }
   }
   renderClubs();
-  box.querySelector('#addClubBtn').onclick = () => {
-    const name = prompt('Club name:')?.trim(); if (!name) return; if (clubs.includes(name)) return showToast('Already exists','warn'); clubs.push(name); renderClubs(); updateClubDropdowns();
+
+  const addBtn = box.querySelector('#addClubBtn');
+  addBtn.onclick = () => {
+    const name = prompt('Club name:')?.trim(); if (!name) return;
+    if (clubs.includes(name)) return showToast('Already exists','warn');
+    clubs.push(name);
+    renderClubs();
+    updateClubDropdowns();
   };
+
   box.addEventListener('click', e => {
     const btn = e.target;
     if (btn.dataset.dir){
@@ -729,147 +699,73 @@ function openClubDialog(){
     }
     if (btn.dataset.del!==undefined){ clubs.splice(Number(btn.dataset.del),1); renderClubs(); updateClubDropdowns(); }
   });
+
+  box.querySelector('#saveClubsBtn').onclick = () => {
+    // Persist to active tournament snapshot if exists
+    saveActiveTournament(true);
+    overlay.remove();
+    showToast('Clubs saved','success');
+  };
+
+  // If promptAdd is requested, trigger the add click after a short delay so the dialog is visible
+  if (promptAdd){
+    setTimeout(()=> {
+      try { addBtn.click(); } catch(e){ console.warn('promptAdd failed', e); }
+    }, 120);
+  }
+
+  // return overlay in case caller wants to close it programmatically
+  return overlay;
 }
+
 function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
-/* ---------- Entry (prefill / edit support) ---------- */
+/* ---------- Entry ---------- */
 /*
-  startEntry(editMode = false, dupOnly = false)
-  - editMode: if true, prefill from teams (if teams empty and active snapshot exists, restore snapshot teams)
-  - dupOnly: if true, prefill and focus ONLY DUPR inputs (keeps other inputs present but hides them)
+ startEntry() now:
+ - If rrType == 'club' and clubs.length == 0 -> openClubDialog(promptAdd=true) and prevent entry form from rendering
+ - Otherwise render entry form as before
 */
-function startEntry(editMode = false, dupOnly = false){
+function startEntry(){
   const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
 
-  // If editMode and teams empty, try to populate from active snapshot
-  if (editMode && (!teams || teams.length === 0)) {
-    const active = getActiveTournament();
-    if (active && active.snapshot && active.snapshot.teams) {
-      teams = (active.snapshot.teams || []).map(t => ({ id: t.id || generateId('t'), name: t.name || '', players: (t.players||[]).map(p => ({name:p.name||'',dupr:p.dupr||''})), group: t.group||null, club: t.club||'' }));
-    }
+  if (clubRR && clubs.length===0) {
+    // Open manage clubs and prompt to add immediately so user doesn't have to hunt for the button
+    openClubDialog(true);
+    showToast('No clubs found — please add clubs before entering teams.','warn');
+    return;
   }
 
-  // If editMode and existing teams length differs from numTeams, we will show inputs matching numTeams,
-  // prefill from existing teams where possible.
   let html = '';
   for(let i=1;i<=n;i++){
-    const existing = (teams[i-1]) || null;
     html += `<div style="background:rgba(255,255,255,0.03);padding:14px;border-radius:10px;margin-bottom:12px;">`;
     if(type==='singles'){
-      const pname = existing ? (existing.players[0]?.name || '') : '';
-      const pdupr = existing ? (existing.players[0]?.dupr || '') : '';
-      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label>
-        <div style="display:flex;gap:8px;margin-top:6px;">
-          <div class="non-dupr" style="flex:1;"><input id="pA_${i}" type="text" placeholder="Player name" style="width:100%;" value="${escapeHtml(pname)}"></div>
-          ${dupr?`<input id="dA_${i}" class="dupr-field" type="text" placeholder="DUPR" style="width:120px;" value="${escapeHtml(pdupr)}">`:''}
-        </div>`;
-      if(clubRR) html += `<div class="non-dupr" style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></div>`;
+      html += `<label style="font-size:13px;color:var(--muted)">Player ${i}</label><div style="display:flex;gap:8px;margin-top:6px;"><input id="pA_${i}" type="text" placeholder="Player name" style="flex:1;">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR" style="width:120px;">`:''}</div>`;
+      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
     } else {
-      const pAname = existing ? (existing.players[0]?.name || '') : '';
-      const pBname = existing ? (existing.players[1]?.name || '') : '';
-      const pAdupr = existing ? (existing.players[0]?.dupr || '') : '';
-      const pBdupr = existing ? (existing.players[1]?.dupr || '') : '';
-      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;">
-          <div class="non-dupr"><input id="pA_${i}" type="text" placeholder="Player A" value="${escapeHtml(pAname)}">${dupr?`<input id="dA_${i}" class="dupr-field" type="text" placeholder="DUPR A" style="margin-top:4px;" value="${escapeHtml(pAdupr)}">`:''}</div>
-          <div class="non-dupr"><input id="pB_${i}" type="text" placeholder="Player B" value="${escapeHtml(pBname)}">${dupr?`<input id="dB_${i}" class="dupr-field" type="text" placeholder="DUPR B" style="margin-top:4px;" value="${escapeHtml(pBdupr)}">`:''}</div>
-        </div>`;
-      if(clubRR) html += `<div class="non-dupr" style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></div>`;
+      html += `<label style="font-size:13px;color:var(--muted)">Team ${i}</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px;"><div><input id="pA_${i}" type="text" placeholder="Player A">${dupr?`<input id="dA_${i}" type="text" placeholder="DUPR A" style="margin-top:4px;">`:''}</div><div><input id="pB_${i}" type="text" placeholder="Player B">${dupr?`<input id="dB_${i}" type="text" placeholder="DUPR B" style="margin-top:4px;">`:''}</div></div>`;
+      if(clubRR) html += `<div style="margin-top:8px;"><select id="club_${i}"><option value="">--</option>${clubs.map(c=>`<option>${c}</option>`).join('')}</select></div>`;
     }
     html += `</div>`;
   }
-
-  html += `<div class="action-row"><button class="btn" onclick="saveTeams(${editMode ? 'true' : 'false'})">Save Teams</button><button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button></div>`;
-  $('entryInner').innerHTML = html;
-
-  // Set club dropdown selections from existing teams if editing
-  if (editMode){
-    for(let i=1;i<=n;i++){
-      const existing = teams[i-1] || null;
-      if (existing && existing.club){
-        const sel = $(`club_${i}`);
-        if (sel) sel.value = existing.club;
-      }
-    }
-  }
-
-  // If dupOnly is requested, hide non-dupr blocks to present a focused DUPR-only UI
-  if (dupOnly){
-    // ensure DUPR checkbox is checked so dup fields are present (handled in caller)
-    setTimeout(()=> {
-      document.querySelectorAll('#entryInner .non-dupr').forEach(el => el.classList.add('hidden-while-dup'));
-      // focus first dup field
-      const firstDup = document.querySelector('#entryInner .dupr-field');
-      if (firstDup) firstDup.focus();
-    }, 60);
-  } else {
-    // ensure none are hidden
-    setTimeout(()=> {
-      document.querySelectorAll('#entryInner .non-dupr').forEach(el => el.classList.remove('hidden-while-dup'));
-    }, 60);
-  }
-
-  $('entryCard').style.display = 'block';
-  updateBanner(editMode ? 'Edit Teams' : 'Entry');
+  html += `<div class="action-row"><button class="btn" onclick="saveTeams();showToast('Teams saved','success');">Save Teams</button><button class="btn ghost" onclick="$('entryCard').style.display='none';updateBanner('Round Robin')">Cancel</button></div>`;
+  $('entryInner').innerHTML = html; $('entryCard').style.display = 'block'; updateBanner('Entry');
 }
 
-// Utility to escape HTML attribute values
-function escapeHtml(s){
-  if (s === null || s === undefined) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-/* ---------- Save teams (update in-place when editing) ---------- */
-function saveTeams(editMode = false){
-  const n = clampInt($('numTeams').value, 2);
-  const type = $('gameType').value;
-  const dupr = $('enableDUPR').checked;
-  const clubRR = $('rrType').value === 'club';
-
-  // If editing and current fixtures exist and user reduced number of teams, ask confirm
-  if (editMode && fixtures && fixtures.length > 0 && teams.length > n){
-    if (!confirm(`You are reducing the team count from ${teams.length} to ${n}. This will remove the last ${teams.length - n} teams and any fixtures involving them will remain but may reference missing team names. Proceed?`)) {
-      return;
-    }
-  }
-
-  const newTeams = [];
-  for (let i=1;i<=n;i++){
+function saveTeams(){
+  const n = clampInt($('numTeams').value); const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
+  teams = [];
+  for(let i=1;i<=n;i++){
     const nameA = $(`pA_${i}`)?.value.trim() || (type==='singles'?`Player ${i}`:`P${i}A`);
     const nameB = type==='doubles' ? $(`pB_${i}`)?.value.trim() || `P${i}B` : '';
-    const duprA = dupr ? $(`dA_${i}`)?.value.trim() || '' : '';
-    const duprB = dupr && type==='doubles' ? $(`dB_${i}`)?.value.trim() || '' : '';
+    const duprA = dupr ? $(`dA_${i}`)?.value.trim() : '';
+    const duprB = dupr && type==='doubles' ? $(`dB_${i}`)?.value.trim() : '';
     const club = clubRR ? $(`club_${i}`)?.value : '';
     const players = type==='singles' ? [{name:nameA,dupr:duprA}] : [{name:nameA,dupr:duprA},{name:nameB,dupr:duprB}];
-
-    if (editMode && teams[i-1]){
-      // update in-place preserving id
-      const existing = teams[i-1];
-      existing.name = type === 'singles' ? nameA : (existing.name || `Team ${i}`);
-      if (type !== 'singles') existing.name = `Team ${i}`;
-      existing.players = players;
-      existing.club = club || '';
-      existing.isBye = false;
-      newTeams.push(existing);
-    } else {
-      // create new team object (fresh id)
-      newTeams.push({ id: generateId('t'), name: type==='singles' ? nameA : `Team ${i}`, players, group: null, club: club || '', isBye:false });
-    }
+    teams.push({id:generateId('t'), name: type==='singles'?nameA:`Team ${i}`, players, group:null, club, isBye:false});
   }
-
-  // If editing and there were additional teams beyond newTeams, we keep only the newTeams
-  teams = newTeams.slice();
-
-  // Reassign groups (maintain previous group numbers if possible)
-  assignGroups();
-
-  // Hide entry and save snapshot
-  $('entryCard').style.display = 'none';
-  updateBanner('Round Robin');
-  ensureTournamentExistsOnFirstSave();
-  saveActiveTournament(true);
-  showToast('Teams updated','success');
+  assignGroups(); $('entryCard').style.display='none'; updateBanner('Round Robin'); ensureTournamentExistsOnFirstSave(); saveActiveTournament(true);
 }
 
 /* ---------- Group assignment ---------- */
@@ -1089,28 +985,52 @@ function generateRankings(){
 }
 
 /* ---------- Knockouts ---------- */
-function proceedToKnockouts(){ const qualPer = Number($('qualPerGroup').value); const groups={}; teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); }); const qualifiers=[]; Object.keys(groups).forEach(g=>{ const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{ const sa=rankings[a.id]||{}, sb=rankings[b.id]||{}; if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0); return 0; }); qualifiers.push(...ranked.slice(0,qualPer)); }); const totalQual = qualifiers.length; const enableQF = $('enableQF').checked && totalQual >= 8; const stages = enableQF ? 8 : (totalQual >= 4 ? 4 : 2); knockout = { qualifiers, stages, qf:null, sf1:null, sf2:null, final:null, third:null }; renderAppropriateKnockoutView(); $('knockoutsCard').style.display='block'; $('rankingsCard').style.display='none'; updateBanner('Knockouts'); }
+function proceedToKnockouts(){
+  const qualPer = Number($('qualPerGroup').value);
+  // If user explicitly chose None - Only RR (value 0), we stop here and do not proceed to Knockouts.
+  if (qualPer === 0) {
+    showToast('No qualifiers selected — tournament will stop at Round-Robin stage.','info');
+    return;
+  }
+  const groups={}; teams.forEach(t=>{ if(!groups[t.group]) groups[t.group]=[]; groups[t.group].push(t); });
+  const qualifiers=[];
+  Object.keys(groups).forEach(g=>{
+    const ranked = teams.filter(t=>t.group===Number(g)).sort((a,b)=>{
+      const sa=rankings[a.id]||{}, sb=rankings[b.id]||{};
+      if ((sb.pts||0) !== (sa.pts||0)) return (sb.pts||0)-(sa.pts||0);
+      return 0;
+    });
+    qualifiers.push(...ranked.slice(0,qualPer));
+  });
+  const totalQual = qualifiers.length;
+  const enableQF = $('enableQF').checked && totalQual >= 8;
+  const stages = enableQF ? 8 : (totalQual >= 4 ? 4 : 2);
+  knockout = { qualifiers, stages, qf:null, sf1:null, sf2:null, final:null, third:null };
+  renderAppropriateKnockoutView();
+  $('knockoutsCard').style.display='block'; $('rankingsCard').style.display='none'; updateBanner('Knockouts');
+}
 function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inner.innerHTML=''; const q = knockout.qualifiers || []; if (knockout.stages===8){ const matches=[{t1:q[0],t2:q[7]},{t1:q[3],t2:q[4]},{t1:q[1],t2:q[6]},{t1:q[2],t2:q[5]}]; inner.innerHTML += '<div class="title" style="text-align:center;margin-bottom:16px;">Quarterfinals</div>'; inner.innerHTML += renderKOBracket(matches,'qf'); knockout.qf = matches; } if (knockout.stages>=4){ inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Semifinals</div>'; const sf1 = knockout.qf ? [knockout.qf[0],knockout.qf[1]] : [q[0],q[3]]; const sf2 = knockout.qf ? [knockout.qf[2],knockout.qf[3]] : [q[1],q[2]]; inner.innerHTML += renderKOBracket([sf1,sf2],'sf'); } inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">Final</div>'; inner.innerHTML += renderKOBracket([null],'final'); if (knockout.stages>=4) inner.innerHTML += '<div class="title" style="text-align:center;margin:24px 0 16px;">3rd Place (optional)</div>' + renderKOBracket([null],'third'); }
 function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
 /* ---------- Exports ---------- */
-/* (export functions unchanged from previous version, DUPR CSV etc) */
 function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
 function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
 
 /* ------------------ Small smoke-check patches ------------------
-   These functions were added earlier and retained.
+   These three functions fix the missing handlers and harden the DUPR template branch.
 -----------------------------------------------------------------*/
 function updateQualifierDefaults(){
+  // Called when numGroups input changes.
   try {
     const ng = clampInt($('numGroups').value, 1);
     const qualSel = $('qualPerGroup');
     if (!qualSel) return;
-    const cur = Number(qualSel.value) || 1;
+    const cur = Number(qualSel.value) || 0;
     if (cur > ng) {
-      qualSel.value = Math.max(1, Math.floor(ng / 2)) || 1;
+      // if current selection numeric and larger than group size, reduce it
+      if (cur > 0) qualSel.value = String(Math.max(1, Math.floor(ng / 2)) || 1);
     }
   } catch(e){
     console.warn('updateQualifierDefaults error', e);
@@ -1118,6 +1038,7 @@ function updateQualifierDefaults(){
 }
 
 function onQualPerGroupManual(){
+  // No-op placeholder so onchange won't throw; can be extended later.
   return;
 }
 
@@ -1142,11 +1063,13 @@ function formatYMD(d){
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Use saved tournament snapshot gameType if present, otherwise use UI control
 function getTournamentGameType() {
   const active = getActiveTournament();
   if (active && active.snapshot && active.snapshot.settings && active.snapshot.settings.gameType) {
     return active.snapshot.settings.gameType; // 'singles' or 'doubles'
   }
+  // fallback to current control
   return ($('gameType') && $('gameType').value) ? $('gameType').value : 'doubles';
 }
 
@@ -1166,6 +1089,7 @@ function duprExportTemplateCsvLines(){
     "teamAGame5","teamBGame5"
   ];
 
+  // matchType letter based on saved snapshot (preferred) then UI control ('S' or 'D')
   const gtype = getTournamentGameType();
   const mt = (gtype === 'singles') ? 'S' : 'D';
 
@@ -1178,6 +1102,7 @@ function duprExportTemplateCsvLines(){
 }
 
 function buildDupRRowFromFixture(f){
+  // matchType should be single letter: 'S' or 'D' — use saved snapshot if present
   const gtype = getTournamentGameType();
   const matchType = (gtype === 'singles') ? 'S' : 'D';
   const eventName = ($('tourneyName') && $('tourneyName').value.trim()) || (getActiveTournament() ? getActiveTournament().name : '') || '';
@@ -1287,45 +1212,21 @@ function exportDupRCSV(){
 /* ---------- Helpers used across UI ---------- */
 function updateBanner(stage){ const el = $('stageBanner'); if (el) el.textContent = `Current Stage: ${stage}`; }
 
-/* ---------- Edit Teams flow (Option C) ---------- */
-/* Opens the edit teams flow: warns if fixtures exist, offers DUPR-only or full edit */
-function openEditTeams(){
-  if (!teams || teams.length === 0) {
-    // If no teams loaded, try to restore from active snapshot if any
-    const active = getActiveTournament();
-    if (active && active.snapshot && active.snapshot.teams) {
-      teams = (active.snapshot.teams || []).map(t => ({ id: t.id || generateId('t'), name: t.name || '', players: (t.players||[]).map(p => ({name:p.name||'',dupr:p.dupr||''})), group: t.group||null, club: t.club||'' }));
-    }
+/* ---------- Qualifier visual update ---------- */
+function updateQualVisual(){
+  try {
+    const container = $('qualContainer');
+    const sel = $('qualPerGroup');
+    if (!container || !sel) return;
+    if (Number(sel.value) === 0) container.classList.add('qual-none');
+    else container.classList.remove('qual-none');
+  } catch(e){
+    console.warn('updateQualVisual error', e);
   }
-
-  if (fixtures && fixtures.length > 0){
-    // show warning overlay with options
-    const overlay = document.createElement('div'); overlay.className='overlay';
-    const box = document.createElement('div'); box.className='dialog-box';
-    box.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><div style="font-weight:800;color:#eaf4ff">Edit Teams — Warning</div><button class="btn ghost small" id="closeWarn">Close</button></div>
-      <div style="color:var(--muted);line-height:1.5;margin-bottom:12px;">Fixtures already exist. Editing teams will <strong>not</strong> delete fixtures — team IDs are preserved — but changing names/players may affect interpretation of existing results. Choose an action:</div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;"><button class="btn" id="dupOnlyBtn">Edit DUPR IDs only</button><button class="btn ghost" id="editAllBtn">Edit all team details</button><button class="btn ghost small" id="cancelWarn">Cancel</button></div>`;
-    overlay.appendChild(box); document.body.appendChild(overlay);
-    box.querySelector('#closeWarn').onclick = () => overlay.remove();
-    box.querySelector('#cancelWarn').onclick = () => overlay.remove();
-    box.querySelector('#dupOnlyBtn').onclick = () => { overlay.remove(); // open entry in editMode dupOnly true
-      // ensure DUPR checkbox enabled so fields exist
-      if (!$('enableDUPR').checked) {
-        if (!confirm('DUPR IDs are currently disabled. Enable DUPR fields for editing?')) return;
-        $('enableDUPR').checked = true;
-      }
-      startEntry(true, true);
-    };
-    box.querySelector('#editAllBtn').onclick = () => { overlay.remove(); startEntry(true, false); };
-    return;
-  }
-
-  // No fixtures: open full edit directly
-  startEntry(true, false);
 }
 
 /* ---------- Init ---------- */
-renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability();
+renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability(); updateQualVisual();
 
 </script>
 </body>
