@@ -125,6 +125,10 @@
     cursor:pointer;
     transition:all 0.2s;
     white-space:nowrap;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
   }
   .btn:hover{ background:var(--gold-hover); transform:translateY(-1px); }
   .btn.ghost{
@@ -283,39 +287,51 @@
     color: #b07f1a;
   }
 
-  /* Quick action full-width buttons (mobile) */
+  /* Quick action full-width buttons (desktop) - reduced size for balance */
   .quick-action-btn {
     display:flex;
     align-items:center;
     justify-content:center;
-    height:56px;
+    height:48px;            /* reduced from larger value */
     border-radius:10px;
-    font-size:18px;
+    font-size:16px;        /* slightly reduced */
     font-weight:800;
     letter-spacing:0.2px;
+    line-height:1;
+    padding:0 14px;
+  }
+
+  /* Make Manage Clubs a centered inline-flex when visible */
+  #manageClubsBtn {
+    display:none; /* defensive default; JS toggles to inline-flex */
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+    min-width:120px;
   }
 
   /* Mobile-specific compacting */
   @media (max-width:480px){
     :root { --input-height:44px; }
-    .card { padding:12px; border-radius:14px; }
+    .card { padding:10px; border-radius:14px; }
     .title { font-size:18px; margin-bottom:10px; }
     label { font-size:13px; margin-bottom:4px; }
-    input[type="text"], input[type="number"], select, .score-input { height:44px; font-size:14px; padding:0 10px; border-radius:8px; }
-    .btn { height:46px; font-size:15px; border-radius:10px; padding:0 14px; }
-    .btn.small { height:40px; font-size:13px; padding:0 10px; }
+    input[type="text"], input[type="number"], select, .score-input { height:42px; font-size:14px; padding:0 10px; border-radius:8px; }
+    .btn { height:44px; font-size:14px; border-radius:10px; padding:0 12px; }
+    .btn.small { height:36px; font-size:13px; padding:0 10px; }
     .action-row { margin-top:10px; gap:8px; }
-    .action-row .btn { max-width:220px; }
-    .quick-action-btn { height:52px; font-size:16px; border-radius:10px; }
+    .action-row .btn { max-width:200px; }
+    /* tighter Quick Actions so 3rd button fits above fold on iPhone 12 */
+    .quick-action-btn { height:44px; font-size:15px; padding:0 12px; }
     .match-card { padding:12px; }
     .match-title { font-size:14px; }
     /* tighter vertical spacing to fit iPhone 12 viewport */
-    .wrap { padding:10px; }
+    .wrap { padding:8px; }
     footer { margin-top:18px; }
   }
 
   /* ensure Manage Clubs is hidden by default (defensive) */
-  #manageClubsBtn { display:none; }
+  /* #manageClubsBtn already set above */
 </style>
 </head>
 <body>
@@ -667,7 +683,13 @@ function updateManageClubsVisibility(){
     const rr = $('rrType') ? $('rrType').value : 'within';
     const btn = $('manageClubsBtn');
     if (!btn) return;
-    btn.style.display = (rr === 'club') ? 'inline-flex' : 'none';
+    if (rr === 'club') {
+      btn.style.display = 'inline-flex';
+      btn.style.alignItems = 'center';
+      btn.style.justifyContent = 'center';
+    } else {
+      btn.style.display = 'none';
+    }
   } catch(e){ console.warn('updateManageClubsVisibility error', e); }
 }
 
@@ -1387,11 +1409,9 @@ function updateQualVisual(){
 /* ---------- Init ---------- */
 renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability(); updateQualVisual(); updateClubDropdowns(); updateManageClubsVisibility();
 
-/* Also ensure visibility updated after DOM content loaded (defensive for some mobile browsers) */
 window.addEventListener('load', () => {
   try { updateManageClubsVisibility(); updateClubDropdowns(); } catch(e){/* ignore */ }
 });
-
 </script>
 </body>
 </html>
