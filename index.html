@@ -17,7 +17,7 @@
     --radius:10px;
     --maxwidth:1240px;
     --shadow:0 8px 24px rgba(2,8,25,0.15);
-    --input-height:42px;
+    --input-height:48px; /* desktop comfortable height */
     --toast-bg:#102238ee;
     --toast-text:#eaf4ff;
     --gap:12px;
@@ -141,7 +141,6 @@
     gap:10px;
     margin-top:16px;
     justify-content:flex-end;
-    align-items:center;
   }
   .action-row .btn{ flex:1; max-width:180px; }
   @media (min-width:480px){
@@ -284,54 +283,39 @@
     color: #b07f1a;
   }
 
-  /* ---------------- Mobile (desired layout) ---------------- */
-  @media (max-width:480px){
-    /* match your desired older iteration: two-column form on mobile for Setup */
-    .form-row {
-      grid-template-columns: repeat(2, 1fr);
-      gap:12px;
-      align-items: center;
-    }
-    .form-row .form-item { margin-bottom:6px; }
-    /* reduce vertical padding on inputs a touch for the compact layout */
-    input[type="text"], input[type="number"], select, .score-input { height:44px; font-size:15px; padding:0 14px; }
-
-    /* Make primary action large and left; keep reset/load compact to right */
-    .action-row { justify-content:flex-start; gap:10px; align-items:center; }
-    /* primary Next wide */
-    .action-row .btn { max-width: none; }
-    /* first button (Next) should take more space */
-    .action-row .btn:first-child { flex: 1 1 60%; min-width:0; border-radius:10px; }
-    /* keep reset and load compact */
-    .action-row .btn.ghost { flex: 0 0 auto; min-width:110px; }
-
-    /* Quick Actions card buttons — large and stacked */
-    .card.quick-actions .btn { display:block; width:100%; padding:14px 18px; border-radius:12px; font-size:18px; margin-bottom:12px; box-shadow:none; }
-    .card.quick-actions .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--card-text); }
-
-    /* spacing tweaks to mimic screenshot */
-    .wrap { padding-left:20px; padding-right:20px; }
-    .card { padding:18px; border-radius:14px; }
-
-    /* Move Manage Clubs into flow (small button) on mobile */
-    #manageClubsBtn { display:inline-block !important; }
-
-    /* align checkboxes to center under inputs like screenshot */
-    .checkbox-row { display:flex; flex-direction:column; align-items:center; gap:8px; }
-    .checkbox-row label { margin-top:6px; text-align:center; }
-
-    /* Stack schedule grid columns horizontally as before but keep spacing */
-    .schedule-grid{ gap:10px; }
-
-    /* Avoid match grid collapsing */
-    .match-grid{ margin-top:8px; }
-
-    footer{ font-size:12px; padding-bottom:20px; }
+  /* Quick action full-width buttons (mobile) */
+  .quick-action-btn {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    height:56px;
+    border-radius:10px;
+    font-size:18px;
+    font-weight:800;
+    letter-spacing:0.2px;
   }
 
-  /* Specific class to mark quick actions card */
-  .card.quick-actions { padding:18px; }
+  /* Mobile-specific compacting */
+  @media (max-width:480px){
+    :root { --input-height:44px; }
+    .card { padding:12px; border-radius:14px; }
+    .title { font-size:18px; margin-bottom:10px; }
+    label { font-size:13px; margin-bottom:4px; }
+    input[type="text"], input[type="number"], select, .score-input { height:44px; font-size:14px; padding:0 10px; border-radius:8px; }
+    .btn { height:46px; font-size:15px; border-radius:10px; padding:0 14px; }
+    .btn.small { height:40px; font-size:13px; padding:0 10px; }
+    .action-row { margin-top:10px; gap:8px; }
+    .action-row .btn { max-width:220px; }
+    .quick-action-btn { height:52px; font-size:16px; border-radius:10px; }
+    .match-card { padding:12px; }
+    .match-title { font-size:14px; }
+    /* tighter vertical spacing to fit iPhone 12 viewport */
+    .wrap { padding:10px; }
+    footer { margin-top:18px; }
+  }
 
+  /* ensure Manage Clubs is hidden by default (defensive) */
+  #manageClubsBtn { display:none; }
 </style>
 </head>
 <body>
@@ -359,8 +343,9 @@
             </div>
 
             <div class="form-item">
+              <!-- RR dropdown placed before No. of Groups as requested -->
               <label>Round-Robin Type</label>
-              <select id="rrType" onchange="onRRTypeChange()">
+              <select id="rrType" onchange="onRRTypeChange(); updateManageClubsVisibility()">
                 <option value="within" selected>Within Groups</option>
                 <option value="across">Across All</option>
                 <option value="club">Club vs Club</option>
@@ -399,7 +384,7 @@
           </div>
 
           <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">
-            <button id="manageClubsBtn" class="btn small ghost" style="display:none;" onclick="openClubDialog()">Manage Clubs</button>
+            <button id="manageClubsBtn" class="btn small ghost" onclick="openClubDialog()">Manage Clubs</button>
           </div>
 
           <div class="action-row" style="margin-top:12px;">
@@ -496,12 +481,12 @@
 
       <!-- Right Sidebar -->
       <div>
-        <div class="card quick-actions">
+        <div class="card">
           <div class="title">Quick Actions</div>
-          <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
-            <button class="btn small block" onclick="generateFixtures()">Generate Fixtures</button>
-            <button class="btn small block" onclick="generateRankings()">Generate Rankings</button>
-            <button class="btn small ghost block" onclick="exportSchedulePDF()">Export Schedule (PDF)</button>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px;">
+            <button class="btn quick-action-btn" onclick="generateFixtures()" style="background:var(--gold);color:#102238;">Generate Fixtures</button>
+            <button class="btn quick-action-btn" onclick="generateRankings()" style="background:var(--gold);color:#102238;">Generate Rankings</button>
+            <button class="btn quick-action-btn" onclick="exportSchedulePDF()" style="background:transparent;border:1px solid rgba(255,255,255,0.08);color:var(--card-text);">Export Schedule (PDF)</button>
           </div>
         </div>
 
@@ -670,10 +655,20 @@ function updateQualLabel(){
 
 function onRRTypeChange(){
   const rr = $('rrType').value;
-  $('manageClubsBtn').style.display = (rr==='club') ? 'inline-block' : 'none';
   updateGroupFieldState();
   updateQualLabel();
   updateQualVisual();
+  updateManageClubsVisibility();
+}
+
+/* ---------- New: Manage Clubs visibility centralized ---------- */
+function updateManageClubsVisibility(){
+  try {
+    const rr = $('rrType') ? $('rrType').value : 'within';
+    const btn = $('manageClubsBtn');
+    if (!btn) return;
+    btn.style.display = (rr === 'club') ? 'inline-flex' : 'none';
+  } catch(e){ console.warn('updateManageClubsVisibility error', e); }
 }
 
 /* ---------- QF checkbox availability ---------- */
@@ -682,7 +677,6 @@ function updateQFAvailability(){
   const count = clampInt($('numTeams').value, 0);
   const qfCheckbox = $('enableQF');
   const qfLabel = $('enableQFLabel');
-  // For doubles, teams count is numTeams; for singles we treat same field as number of players
   const eligible = count >= 8;
   if (!eligible){
     qfCheckbox.checked = false;
@@ -700,11 +694,6 @@ function onParticipantCountChange(){
 }
 
 /* ---------- Club Management ---------- */
-/*
- openClubDialog(promptAdd = false)
- - promptAdd true => immediately triggers the Add Club prompt (same as user clicking "+ Add Club")
- - dialog renders current clubs and allows add/delete/reorder. Save & Close persists to snapshot when user clicks Save & Close.
-*/
 function openClubDialog(promptAdd = false){
   const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
   const box = document.createElement('div'); box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
@@ -745,37 +734,25 @@ function openClubDialog(promptAdd = false){
   });
 
   box.querySelector('#saveClubsBtn').onclick = () => {
-    // Persist to active tournament snapshot if exists
     saveActiveTournament(true);
     overlay.remove();
     showToast('Clubs saved','success');
   };
 
-  // If promptAdd is requested, trigger the add click after a short delay so the dialog is visible
   if (promptAdd){
-    setTimeout(()=> {
-      try { addBtn.click(); } catch(e){ console.warn('promptAdd failed', e); }
-    }, 120);
+    setTimeout(()=> { try { addBtn.click(); } catch(e){ console.warn('promptAdd failed', e); } }, 120);
   }
-
-  // return overlay in case caller wants to close it programmatically
   return overlay;
 }
 
 function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
 /* ---------- Entry ---------- */
-/*
- startEntry() now:
- - If rrType == 'club' and clubs.length == 0 -> openClubDialog(promptAdd=true) and prevent entry form from rendering
- - Otherwise render entry form as before
-*/
 function startEntry(){
   const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
 
   if (clubRR && clubs.length===0) {
-    // Open manage clubs and prompt to add immediately so user doesn't have to hunt for the button
     openClubDialog(true);
     showToast('No clubs found — please add clubs before entering teams.','warn');
     return;
@@ -833,11 +810,8 @@ function generateFixtures(){
   const rrType = $('rrType').value;
   const courts = clampInt($('numCourts').value,1);
 
-  /*************************************************************************
-   * 1) Build deterministic list of allowed pairings (no randomness)
-   *************************************************************************/
+  /* 1) Build deterministic list of allowed pairings */
   const allPairs = [];
-  // deterministic team order: sort by team id to avoid dependence on insertion order
   const orderedTeams = teams.slice().sort((a,b)=> a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
 
   if (rrType === 'within') {
@@ -859,7 +833,6 @@ function generateFixtures(){
       }
     }
   } else if (rrType === 'club') {
-    // Only inter-club pairs
     for (let i=0;i<orderedTeams.length;i++){
       for (let j=i+1;j<orderedTeams.length;j++){
         const a = orderedTeams[i], b = orderedTeams[j];
@@ -870,7 +843,7 @@ function generateFixtures(){
     }
   }
 
-  // sort pairs deterministically by team ids (stable)
+  /* sort pairs deterministically */
   allPairs.sort((x,y) => {
     const aKey = x.t1.id < x.t2.id ? x.t1.id + '|' + x.t2.id : x.t2.id + '|' + x.t1.id;
     const bKey = y.t1.id < y.t2.id ? y.t1.id + '|' + y.t2.id : y.t2.id + '|' + y.t1.id;
@@ -879,34 +852,24 @@ function generateFixtures(){
     return 0;
   });
 
-  // Map to fixture objects (unassigned initially)
   fixtures = allPairs.map((p, idx) => ({ id: p.id, matchNum: idx+1, t1: p.t1, t2: p.t2, court: null, round: null, group: null }));
 
-  /*************************************************************************
-   * 2) Deterministic placement pass: create physical rounds and place matches
-   *************************************************************************/
+  /* 2) Deterministic placement pass */
   (function deterministicPlacement() {
     const courtsCount = courts;
-
-    // trackers
-    const assignedRoundsCount = {}; // teamId -> number of rounds assigned so far
-    const lastRoundPlayed = {}; // teamId -> last round index they played (0-based), undefined if none
+    const assignedRoundsCount = {};
+    const lastRoundPlayed = {};
     teams.forEach(t => { assignedRoundsCount[t.id] = 0; });
 
-    const unassigned = fixtures.slice(); // shallow copy
-
+    const unassigned = fixtures.slice();
     let roundIndex = 0;
     while (unassigned.length) {
-      // teams already scheduled in this physical round
       const usedThisRound = new Set();
-      // try to fill each court
       let placedInRound = 0;
       for (let c = 0; c < courtsCount; c++) {
-        // build candidates (teams not used this round)
         const candidates = unassigned.filter(f => !usedThisRound.has(f.t1.id) && !usedThisRound.has(f.t2.id));
         if (!candidates.length) break;
 
-        // score candidates:
         const LARGE = 10000;
         const BACK_TO_BACK_PENALTY = 1000;
         const GAP_WEIGHT = 1;
@@ -923,15 +886,12 @@ function generateFixtures(){
           return { f, score, key };
         });
 
-        // sort by score asc, then by key asc (deterministic)
         scored.sort((x,y) => x.score - y.score || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
 
         const chosen = scored[0].f;
-        // assign
         chosen.round = roundIndex + 1;
         chosen.court = c + 1;
 
-        // update trackers
         usedThisRound.add(chosen.t1.id);
         usedThisRound.add(chosen.t2.id);
         assignedRoundsCount[chosen.t1.id] = (assignedRoundsCount[chosen.t1.id] || 0) + 1;
@@ -939,13 +899,11 @@ function generateFixtures(){
         lastRoundPlayed[chosen.t1.id] = roundIndex;
         lastRoundPlayed[chosen.t2.id] = roundIndex;
 
-        // remove from unassigned
         const idx = unassigned.indexOf(chosen);
         if (idx >= 0) unassigned.splice(idx,1);
         placedInRound++;
       }
 
-      // if nothing placed (rare), forcibly place earliest unassigned on court 1 to avoid infinite loop
       if (placedInRound === 0 && unassigned.length) {
         const f = unassigned.shift();
         f.round = roundIndex + 1;
@@ -960,9 +918,7 @@ function generateFixtures(){
     }
   })();
 
-  /*************************************************************************
-   * 3) Deterministic rebalancer (single-pass, conservative)
-   *************************************************************************/
+  /* 3) Deterministic rebalancer */
   (function deterministicRebalance() {
     if (!fixtures || fixtures.length < 2) return;
 
@@ -1105,7 +1061,6 @@ function renderFixtures(){
     roundDiv.appendChild(inner); grid.appendChild(roundDiv);
   });
 
-  // ensure schedule view is updated too (if visible)
   if ($('scheduleGridContainer').style.display !== 'none') renderScheduleView();
 }
 
@@ -1430,7 +1385,12 @@ function updateQualVisual(){
 }
 
 /* ---------- Init ---------- */
-renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability(); updateQualVisual();
+renderLoadControl(); renderTournamentInfo(); updateGroupFieldState(); updateQualLabel(); updateQFAvailability(); updateQualVisual(); updateClubDropdowns(); updateManageClubsVisibility();
+
+/* Also ensure visibility updated after DOM content loaded (defensive for some mobile browsers) */
+window.addEventListener('load', () => {
+  try { updateManageClubsVisibility(); updateClubDropdowns(); } catch(e){/* ignore */ }
+});
 
 </script>
 </body>
