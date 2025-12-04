@@ -141,6 +141,7 @@
     gap:10px;
     margin-top:16px;
     justify-content:flex-end;
+    align-items:center;
   }
   .action-row .btn{ flex:1; max-width:180px; }
   @media (min-width:480px){
@@ -239,11 +240,6 @@
     font-size:12px;
     color:var(--muted);
   }
-  @media (max-width:480px){
-    .form-row{ grid-template-columns:1fr; }
-    .match-grid{ grid-template-columns:1fr; }
-    .score-input{ width:64px; }
-  }
 
   .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:9999; background:rgba(2,6,15,0.45); padding:20px; }
   .dialog-box{ width: min(680px, 100%); max-width:680px; background:var(--card-bg); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); max-height:88vh; overflow:auto; box-sizing:border-box; margin:0 auto; }
@@ -287,6 +283,55 @@
     font-weight:700;
     color: #b07f1a;
   }
+
+  /* ---------------- Mobile (desired layout) ---------------- */
+  @media (max-width:480px){
+    /* match your desired older iteration: two-column form on mobile for Setup */
+    .form-row {
+      grid-template-columns: repeat(2, 1fr);
+      gap:12px;
+      align-items: center;
+    }
+    .form-row .form-item { margin-bottom:6px; }
+    /* reduce vertical padding on inputs a touch for the compact layout */
+    input[type="text"], input[type="number"], select, .score-input { height:44px; font-size:15px; padding:0 14px; }
+
+    /* Make primary action large and left; keep reset/load compact to right */
+    .action-row { justify-content:flex-start; gap:10px; align-items:center; }
+    /* primary Next wide */
+    .action-row .btn { max-width: none; }
+    /* first button (Next) should take more space */
+    .action-row .btn:first-child { flex: 1 1 60%; min-width:0; border-radius:10px; }
+    /* keep reset and load compact */
+    .action-row .btn.ghost { flex: 0 0 auto; min-width:110px; }
+
+    /* Quick Actions card buttons — large and stacked */
+    .card.quick-actions .btn { display:block; width:100%; padding:14px 18px; border-radius:12px; font-size:18px; margin-bottom:12px; box-shadow:none; }
+    .card.quick-actions .btn.ghost { background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--card-text); }
+
+    /* spacing tweaks to mimic screenshot */
+    .wrap { padding-left:20px; padding-right:20px; }
+    .card { padding:18px; border-radius:14px; }
+
+    /* Move Manage Clubs into flow (small button) on mobile */
+    #manageClubsBtn { display:inline-block !important; }
+
+    /* align checkboxes to center under inputs like screenshot */
+    .checkbox-row { display:flex; flex-direction:column; align-items:center; gap:8px; }
+    .checkbox-row label { margin-top:6px; text-align:center; }
+
+    /* Stack schedule grid columns horizontally as before but keep spacing */
+    .schedule-grid{ gap:10px; }
+
+    /* Avoid match grid collapsing */
+    .match-grid{ margin-top:8px; }
+
+    footer{ font-size:12px; padding-bottom:20px; }
+  }
+
+  /* Specific class to mark quick actions card */
+  .card.quick-actions { padding:18px; }
+
 </style>
 </head>
 <body>
@@ -314,7 +359,6 @@
             </div>
 
             <div class="form-item">
-              <!-- RR dropdown placed before No. of Groups as requested -->
               <label>Round-Robin Type</label>
               <select id="rrType" onchange="onRRTypeChange()">
                 <option value="within" selected>Within Groups</option>
@@ -452,12 +496,12 @@
 
       <!-- Right Sidebar -->
       <div>
-        <div class="card">
+        <div class="card quick-actions">
           <div class="title">Quick Actions</div>
           <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
-            <button class="btn small" onclick="generateFixtures()">Generate Fixtures</button>
-            <button class="btn small" onclick="generateRankings()">Generate Rankings</button>
-            <button class="btn small ghost" onclick="exportSchedulePDF()">Export Schedule (PDF)</button>
+            <button class="btn small block" onclick="generateFixtures()">Generate Fixtures</button>
+            <button class="btn small block" onclick="generateRankings()">Generate Rankings</button>
+            <button class="btn small ghost block" onclick="exportSchedulePDF()">Export Schedule (PDF)</button>
           </div>
         </div>
 
@@ -555,6 +599,7 @@ function restoreSnapshot(data){
   showGroupSummary(); renderFixtures();
   const scores = data.fixtureScores || {};
   Object.keys(scores).forEach(k => { if ($(`s1-${k}`)) $(`s1-${k}`).value = scores[k].s1 || ''; if ($(`s2-${k}`)) $(`s2-${k}`).value = scores[k].s2 || ''; });
+  // also update visual emphasis for qualifiers
   updateQualVisual();
 }
 
@@ -637,6 +682,7 @@ function updateQFAvailability(){
   const count = clampInt($('numTeams').value, 0);
   const qfCheckbox = $('enableQF');
   const qfLabel = $('enableQFLabel');
+  // For doubles, teams count is numTeams; for singles we treat same field as number of players
   const eligible = count >= 8;
   if (!eligible){
     qfCheckbox.checked = false;
@@ -654,6 +700,11 @@ function onParticipantCountChange(){
 }
 
 /* ---------- Club Management ---------- */
+/*
+ openClubDialog(promptAdd = false)
+ - promptAdd true => immediately triggers the Add Club prompt (same as user clicking "+ Add Club")
+ - dialog renders current clubs and allows add/delete/reorder. Save & Close persists to snapshot when user clicks Save & Close.
+*/
 function openClubDialog(promptAdd = false){
   const overlay = document.createElement('div'); overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
   const box = document.createElement('div'); box.style.cssText = 'width:min(600px,95%);background:var(--card-bg);border-radius:10px;padding:20px;max-height:90%;overflow:auto;';
@@ -694,28 +745,37 @@ function openClubDialog(promptAdd = false){
   });
 
   box.querySelector('#saveClubsBtn').onclick = () => {
+    // Persist to active tournament snapshot if exists
     saveActiveTournament(true);
     overlay.remove();
     showToast('Clubs saved','success');
   };
 
+  // If promptAdd is requested, trigger the add click after a short delay so the dialog is visible
   if (promptAdd){
     setTimeout(()=> {
       try { addBtn.click(); } catch(e){ console.warn('promptAdd failed', e); }
     }, 120);
   }
 
+  // return overlay in case caller wants to close it programmatically
   return overlay;
 }
 
 function updateClubDropdowns(){ document.querySelectorAll('select[id^="club_"]').forEach(sel => { const cur = sel.value; sel.innerHTML = '<option value="">--</option>' + clubs.map(c=>`<option value="${c}">${c}</option>`).join(''); if (clubs.includes(cur)) sel.value = cur; }); }
 
 /* ---------- Entry ---------- */
+/*
+ startEntry() now:
+ - If rrType == 'club' and clubs.length == 0 -> openClubDialog(promptAdd=true) and prevent entry form from rendering
+ - Otherwise render entry form as before
+*/
 function startEntry(){
   const n = clampInt($('numTeams').value, 2); if (n < 2) return showToast('Minimum 2 participants','warn');
   const type = $('gameType').value; const dupr = $('enableDUPR').checked; const clubRR = $('rrType').value === 'club';
 
   if (clubRR && clubs.length===0) {
+    // Open manage clubs and prompt to add immediately so user doesn't have to hunt for the button
     openClubDialog(true);
     showToast('No clubs found — please add clubs before entering teams.','warn');
     return;
@@ -745,24 +805,9 @@ function saveTeams(){
     const nameB = type==='doubles' ? $(`pB_${i}`)?.value.trim() || `P${i}B` : '';
     const duprA = dupr ? $(`dA_${i}`)?.value.trim() : '';
     const duprB = dupr && type==='doubles' ? $(`dB_${i}`)?.value.trim() : '';
-    const club = clubRR ? ($(`club_${i}`)?.value || '') : '';
+    const club = clubRR ? $(`club_${i}`)?.value : '';
     const players = type==='singles' ? [{name:nameA,dupr:duprA}] : [{name:nameA,dupr:duprA},{name:nameB,dupr:duprB}];
     teams.push({id:generateId('t'), name: type==='singles'?nameA:`Team ${i}`, players, group:null, club, isBye:false});
-  }
-  // If club mode and there are clubs defined, but some teams lack club assignment -> notify user
-  if ($('rrType').value === 'club') {
-    const assignedCount = teams.filter(t => (t.club||'').trim() !== '').length;
-    if (clubs.length === 0) {
-      openClubDialog(true);
-      showToast('No clubs defined — please add clubs before assigning teams.','warn');
-      return;
-    }
-    if (assignedCount !== teams.length) {
-      // show a clear warning and let user open entry again; Manage Clubs will open to help create clubs
-      showToast(`Warning: ${teams.length - assignedCount} teams have no club selected. Open Entry to assign clubs.`, 'warn');
-      // leave teams saved (so user can re-open Entry and assign clubs) but surface clubs dialog
-      openClubDialog();
-    }
   }
   assignGroups(); $('entryCard').style.display='none'; updateBanner('Round Robin'); ensureTournamentExistsOnFirstSave(); saveActiveTournament(true);
 }
@@ -790,10 +835,6 @@ function generateFixtures(){
 
   /*************************************************************************
    * 1) Build deterministic list of allowed pairings (no randomness)
-   *    - within: pairings only inside each group
-   *    - across: all pairs
-   *    - club: inter-club pairs; if exactly two clubs exist, use deterministic
-   *      round-robin interleaving to evenly distribute pairs into rounds.
    *************************************************************************/
   const allPairs = [];
   // deterministic team order: sort by team id to avoid dependence on insertion order
@@ -818,49 +859,14 @@ function generateFixtures(){
       }
     }
   } else if (rrType === 'club') {
-    // build club -> teams map using trimmed names
-    const clubMap = {};
-    orderedTeams.forEach(t => {
-      const c = (t.club || '').trim();
-      const key = c || '__UNASSIGNED__';
-      clubMap[key] = clubMap[key] || [];
-      clubMap[key].push(t);
-    });
-    const clubKeys = Object.keys(clubMap).filter(k => k !== '__UNASSIGNED__');
-    // if there are exactly two clubs, use balanced deterministic interleaving
-    if (clubKeys.length === 2) {
-      const A = clubMap[clubKeys[0]];
-      const B = clubMap[clubKeys[1]];
-      // expected cross count
-      const expected = A.length * B.length;
-      // If some teams are unassigned, warn and open Manage Clubs to help user rectify
-      const unassignedCount = (clubMap['__UNASSIGNED__'] || []).length;
-      if (unassignedCount > 0) {
-        showToast(`Warning: ${unassignedCount} teams have no club assigned. Please assign clubs and regenerate.`, 'warn');
-        openClubDialog();
-        // continue to generate pairs only using assigned ones (so user can see partial schedule),
-        // but we also validate after generation.
+    // Only inter-club pairs
+    for (let i=0;i<orderedTeams.length;i++){
+      for (let j=i+1;j<orderedTeams.length;j++){
+        const a = orderedTeams[i], b = orderedTeams[j];
+        const ca = (a.club || '').trim() || '__UNASSIGNED__';
+        const cb = (b.club || '').trim() || '__UNASSIGNED__';
+        if (ca !== cb) allPairs.push({ id: generateId('p'), t1: a, t2: b });
       }
-      // Deterministic interleaving: for r=0..A.length-1, for i=0..B.length-1 pair A[(i + r) % A.length] vs B[i]
-      for (let r = 0; r < A.length; r++){
-        for (let i = 0; i < B.length; i++){
-          const t1 = A[(i + r) % A.length];
-          const t2 = B[i];
-          allPairs.push({ id: generateId('p'), t1, t2 });
-        }
-      }
-    } else {
-      // fallback: include all inter-club pairs (skipping same club/unassigned)
-      for (let i=0;i<orderedTeams.length;i++){
-        for (let j=i+1;j<orderedTeams.length;j++){
-          const a = orderedTeams[i], b = orderedTeams[j];
-          const ca = (a.club || '').trim() || '__UNASSIGNED__';
-          const cb = (b.club || '').trim() || '__UNASSIGNED__';
-          if (ca !== cb) allPairs.push({ id: generateId('p'), t1: a, t2: b });
-        }
-      }
-      // if clubs are missing or >2, the fallback works but may produce uneven distribution;
-      // the rebalancer later will attempt to reduce back-to-backs.
     }
   }
 
@@ -882,42 +888,50 @@ function generateFixtures(){
   (function deterministicPlacement() {
     const courtsCount = courts;
 
-    const assignedRoundsCount = {};
-    const lastRoundPlayed = {};
+    // trackers
+    const assignedRoundsCount = {}; // teamId -> number of rounds assigned so far
+    const lastRoundPlayed = {}; // teamId -> last round index they played (0-based), undefined if none
     teams.forEach(t => { assignedRoundsCount[t.id] = 0; });
 
-    const unassigned = fixtures.slice();
+    const unassigned = fixtures.slice(); // shallow copy
 
     let roundIndex = 0;
     while (unassigned.length) {
+      // teams already scheduled in this physical round
       const usedThisRound = new Set();
+      // try to fill each court
       let placedInRound = 0;
       for (let c = 0; c < courtsCount; c++) {
+        // build candidates (teams not used this round)
         const candidates = unassigned.filter(f => !usedThisRound.has(f.t1.id) && !usedThisRound.has(f.t2.id));
         if (!candidates.length) break;
 
+        // score candidates:
         const LARGE = 10000;
-        const BACK_TO_BACK_PENALTY = 2000; // increase slightly to more strongly avoid immediate back-to-back
-        const GAP_WEIGHT = 2; // prefer larger gap more
+        const BACK_TO_BACK_PENALTY = 1000;
+        const GAP_WEIGHT = 1;
 
         const scored = candidates.map(f => {
           const a = f.t1.id, b = f.t2.id;
           const combinedAssigned = (assignedRoundsCount[a] || 0) + (assignedRoundsCount[b] || 0);
           const aLast = (lastRoundPlayed[a] !== undefined) ? lastRoundPlayed[a] : -999;
           const bLast = (lastRoundPlayed[b] !== undefined) ? lastRoundPlayed[b] : -999;
-          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast); // larger is better
+          const combinedGap = (roundIndex - aLast) + (roundIndex - bLast);
           const backPenalty = ((aLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0) + ((bLast === roundIndex - 1) ? BACK_TO_BACK_PENALTY : 0);
           const key = (f.t1.id < f.t2.id) ? (f.t1.id + '|' + f.t2.id) : (f.t2.id + '|' + f.t1.id);
           const score = combinedAssigned * LARGE + backPenalty - (combinedGap * GAP_WEIGHT);
           return { f, score, key };
         });
 
+        // sort by score asc, then by key asc (deterministic)
         scored.sort((x,y) => x.score - y.score || (x.key < y.key ? -1 : (x.key > y.key ? 1 : 0)));
 
         const chosen = scored[0].f;
+        // assign
         chosen.round = roundIndex + 1;
         chosen.court = c + 1;
 
+        // update trackers
         usedThisRound.add(chosen.t1.id);
         usedThisRound.add(chosen.t2.id);
         assignedRoundsCount[chosen.t1.id] = (assignedRoundsCount[chosen.t1.id] || 0) + 1;
@@ -925,11 +939,13 @@ function generateFixtures(){
         lastRoundPlayed[chosen.t1.id] = roundIndex;
         lastRoundPlayed[chosen.t2.id] = roundIndex;
 
+        // remove from unassigned
         const idx = unassigned.indexOf(chosen);
         if (idx >= 0) unassigned.splice(idx,1);
         placedInRound++;
       }
 
+      // if nothing placed (rare), forcibly place earliest unassigned on court 1 to avoid infinite loop
       if (placedInRound === 0 && unassigned.length) {
         const f = unassigned.shift();
         f.round = roundIndex + 1;
@@ -1034,41 +1050,6 @@ function generateFixtures(){
     }
   })();
 
-  /*************************************************************************
-   * 4) Validate club expectations (if club mode)
-   *************************************************************************/
-  (function validateClubMatches(){
-    if (rrType !== 'club') return;
-    // build club counts from teams
-    const clubCounts = {};
-    teams.forEach(t => {
-      const k = (t.club || '').trim() || '__UNASSIGNED__';
-      clubCounts[k] = (clubCounts[k] || 0) + 1;
-    });
-    const realClubs = Object.keys(clubCounts).filter(k => k !== '__UNASSIGNED__');
-    if (realClubs.length === 2) {
-      const a = clubCounts[realClubs[0]] || 0, b = clubCounts[realClubs[1]] || 0;
-      const expected = a * b;
-      const actual = fixtures.filter(f => {
-        const ca = (f.t1.club || '').trim() || '__UNASSIGNED__';
-        const cb = (f.t2.club || '').trim() || '__UNASSIGNED__';
-        return ca !== cb;
-      }).length;
-      if (actual !== expected) {
-        showToast(`Club vs Club expected ${expected} cross-club matches but generated ${actual}. Check team club assignments.`, 'warn');
-      } else {
-        showToast(`Generated ${actual} Club-vs-Club matches (expected ${expected}).`, 'success');
-      }
-    } else {
-      // not exactly two clubs; still warn if many unassigned
-      const unassigned = clubCounts['__UNASSIGNED__'] || 0;
-      if (unassigned > 0) showToast(`${unassigned} teams unassigned to any club`, 'warn');
-    }
-  })();
-
-  /*************************************************************************
-   * 5) Done
-   *************************************************************************/
   renderFixtures();
   $('fixturesCard').style.display='block';
   $('summaryCard').style.display='none';
@@ -1097,9 +1078,9 @@ function renderFixtures(){
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}${f.t1.club?` • ${f.t1.club}`:''}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}${f.t2.club?` • ${f.t2.club}`:''}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
         const columnIndex = (f.court ? (f.court-1) : 0); cols[columnIndex].appendChild(card);
       });
       cols.forEach((colEl, idx) => {
@@ -1114,9 +1095,9 @@ function renderFixtures(){
         const players1 = f.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         const players2 = f.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ');
         card.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Match ${f.matchNum}${f.court?` • Court ${f.court}`:''}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}${f.t1.club?` • ${f.t1.club}`:''}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t1.name}</div><div class="team-players">${players1}</div></div><input id="s1-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>
           <div style="margin:8px 0;text-align:center;font-weight:800;font-size:18px;">vs</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}${f.t2.club?` • ${f.t2.club}`:''}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${f.t2.name}</div><div class="team-players">${players2}</div></div><input id="s2-${f.id}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div>`;
         inner.appendChild(card);
       });
     }
@@ -1124,6 +1105,7 @@ function renderFixtures(){
     roundDiv.appendChild(inner); grid.appendChild(roundDiv);
   });
 
+  // ensure schedule view is updated too (if visible)
   if ($('scheduleGridContainer').style.display !== 'none') renderScheduleView();
 }
 
@@ -1162,10 +1144,10 @@ function renderScheduleView(){
       const match = fixtures.find(f => (f.round === r) && (f.court === c));
       if (match){
         const p1 = document.createElement('div'); p1.style.marginBottom='6px';
-        p1.innerHTML = `<div style="font-weight:700">${match.t1.name}</div><div style="font-size:12px;color:var(--muted)">${match.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}${match.t1.club?` • ${match.t1.club}`:''}</div>`;
+        p1.innerHTML = `<div style="font-weight:700">${match.t1.name}</div><div style="font-size:12px;color:var(--muted)">${match.t1.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
         const vs = document.createElement('div'); vs.style.textAlign='center'; vs.style.fontWeight='800'; vs.style.margin='8px 0'; vs.textContent='vs';
         const p2 = document.createElement('div');
-        p2.innerHTML = `<div style="font-weight:700">${match.t2.name}</div><div style="font-size:12px;color:var(--muted)">${match.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}${match.t2.club?` • ${match.t2.club}`:''}</div>`;
+        p2.innerHTML = `<div style="font-weight:700">${match.t2.name}</div><div style="font-size:12px;color:var(--muted)">${match.t2.players.map(p=>p.name+(p.dupr?` (${p.dupr})`:``)).join(' / ')}</div>`;
         courtBlock.appendChild(p1); courtBlock.appendChild(vs); courtBlock.appendChild(p2);
       } else {
         const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.fontSize='13px'; empty.textContent = '— idle —';
@@ -1276,7 +1258,7 @@ function renderAppropriateKnockoutView(){ const inner = $('knockoutsInner'); inn
 function renderKOBracket(matches, stage){ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;">'; matches.forEach((m,i)=>{ const t1 = m ? (m.t1 || m[0]) : null; const t2 = m ? (m.t2 || m[1]) : null; const id1 = stage + (i+1) + '_1'; const id2 = stage + (i+1) + '_2'; html += `<div class="match-card"><div style="font-weight:700;margin-bottom:8px;">${stage.toUpperCase()} ${i+1}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t1?t1.name:'Winner QF '+(i*2+1)}</div></div><input id="${id1}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div><div style="text-align:center;margin:8px 0;font-size:20px;font-weight:800;">vs</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div style="flex:1;"><div class="team-label">${t2?t2.name:'Winner QF '+(i*2+2)}</div></div><input id="${id2}" class="score-input" type="number" min="0" placeholder="0" oninput="scheduleAutoSave()"></div></div>`; }); html += '</div>'; return html; }
 
 /* ---------- Exports & DUPR helpers (unchanged) ---------- */
-function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id] || {played:0,won:0,lost:0,pf:0,pa:0}; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
+function exportCSV(){ let csv='Team,Played,Won,Lost,PF,PA,PD,Points\n'; const stats={}; teams.forEach(t=> stats[t.id]={played:0,won:0,lost:0,pf:0,pa:0}); fixtures.forEach(f=>{ const s1=Number($(`s1-${f.id}`)?.value||0); const s2=Number($(`s2-${f.id}`)?.value||0); if(!s1&&!s2) return; stats[f.t1.id].played++; stats[f.t2.id].played++; stats[f.t1.id].pf+=s1; stats[f.t1.id].pa+=s2; stats[f.t2.id].pf+=s2; stats[f.t2.id].pa+=s1; if(s1>s2){ stats[f.t1.id].won++; } else { stats[f.t2.id].won++; } stats[f.t1.id].lost = stats[f.t1.id].played - stats[f.t1.id].won; stats[f.t2.id].lost = stats[f.t2.id].played - stats[f.t2.id].won; }); teams.forEach(t=>{ const s=stats[t.id]; const pd = s.pf - s.pa; const pts = s.won*3; csv += `${t.name},${s.played},${s.won},${s.lost},${s.pf},${s.pa},${pd},${pts}\n`; }); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pickleball_rankings.csv'; a.click(); }
 function exportSummaryPDF(){ showToast('PDF export requires jsPDF (not included in this version)','warn'); }
 function exportSchedulePDF(){ showToast('Schedule PDF export ready in full version','success'); }
 function printSchedule(){ window.print(); }
